@@ -8,9 +8,24 @@
     "start": "next start"
   },
   "dependencies": {
+    "@sentry/nextjs": "^10.53.1",
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.106.0",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.38.0",
+    "date-fns": "^4.2.1",
+    "date-fns-tz": "^3.2.0",
+    "googleapis": "^171.4.0",
+    "libphonenumber-js": "^1.13.2",
     "next": "16.2.6",
+    "openai": "^6.38.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "twilio": "^6.0.2",
+    "zod": "^4.4.3"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
