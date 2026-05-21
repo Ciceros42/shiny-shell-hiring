@@ -3,6 +3,15 @@ import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { insertInboundEvent } from '@/lib/db/inbound-events'
 
+function triggerProcessEvents() {
+  const base = process.env.NEXT_PUBLIC_BASE_URL
+  const secret = process.env.CRON_SECRET
+  if (!base || !secret) return
+  fetch(`${base}/api/cron/process-events`, {
+    headers: { authorization: `Bearer ${secret}` },
+  }).catch(() => {})
+}
+
 // Fix 11: shared-secret auth only — Vapi HMAC signing is unreliable (header often absent despite config)
 export async function POST(req: Request) {
   // Must read raw body FIRST before any other operation
@@ -43,8 +52,9 @@ export async function POST(req: Request) {
       await insertInboundEvent({ source: 'vapi', eventType, payload })
     } catch (err) {
       Sentry.captureException(err)
-      // Still return success so the call isn't stalled
     }
+    // Fire-and-forget: trigger event processing after responding
+    triggerProcessEvents()
     return NextResponse.json({ result: 'Recorded, continue.' })
   }
 
@@ -56,5 +66,7 @@ export async function POST(req: Request) {
     return new Response('Internal Server Error', { status: 500 })
   }
 
+  // Fire-and-forget: trigger event processing after responding
+  triggerProcessEvents()
   return NextResponse.json({ received: true })
 }
