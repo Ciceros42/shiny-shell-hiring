@@ -110,13 +110,15 @@ export default async function AnalyticsPage({
   const costPerScreen = screenCallCount > 0 ? totalScreenCost / screenCallCount : null
 
   // --- SLA stats ---
+  type SlaStats = { median_minutes: number | null; pct_under_10_min: number | null }
   const slaLocationId = profile?.location_id ?? null
-  let slaStats: { median_minutes: number | null; pct_under_10_min: number | null } | null = null
+  let slaStats: SlaStats | null = null
   if (slaLocationId) {
-    const { data: sla } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: sla } = await (supabase as any)
       .rpc('get_screen_sla_stats', { p_location_id: slaLocationId })
       .single()
-    slaStats = sla as unknown as typeof slaStats
+    slaStats = sla as SlaStats | null
   }
 
   const periodLabel = days === 0 ? 'All time' : `Last ${days} days`

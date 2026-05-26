@@ -57,14 +57,16 @@ export default async function DashboardPage() {
   ).length
 
   // SLA stats — needs a location_id; skip for company admins without a location
-  let slaStats: { median_minutes: number | null; pct_under_10_min: number | null } | null = null
+  type SlaStats = { median_minutes: number | null; pct_under_10_min: number | null }
+  let slaStats: SlaStats | null = null
   const slaLocationId = profile?.location_id ?? null
 
   if (slaLocationId) {
-    const { data: sla } = await supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: sla } = await (supabase as any)
       .rpc('get_screen_sla_stats', { p_location_id: slaLocationId })
       .single()
-    slaStats = sla as unknown as typeof slaStats
+    slaStats = sla as SlaStats | null
   }
 
   // Recent applications (last 10 with applicant name)
