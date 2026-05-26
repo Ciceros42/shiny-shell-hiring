@@ -140,5 +140,9 @@ export async function POST(req: Request) {
 
   await updateApplicationStatus(application.id, 'sms_sent')
 
-  return NextResponse.json({ status: 'ok' })
+  return NextResponse.json({
+    status: 'ok',
+    applicationId: application.id,
+    email: email || null,
+  })
 }

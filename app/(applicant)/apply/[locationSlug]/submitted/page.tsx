@@ -1,4 +1,12 @@
-export default function SubmittedPage() {
+import EmailFallbackButton from '@/components/applicant/EmailFallbackButton'
+
+interface Props {
+  searchParams: Promise<{ appId?: string; email?: string }>
+}
+
+export default async function SubmittedPage({ searchParams }: Props) {
+  const { appId, email } = await searchParams
+
   return (
     <div className="flex flex-col items-center py-12 text-center">
       <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
@@ -26,6 +34,12 @@ export default function SubmittedPage() {
           <li>3. If you qualify, pick your interview time online</li>
         </ol>
       </div>
+
+      {appId && email && (
+        <div className="mt-8">
+          <EmailFallbackButton applicationId={appId} email={email} />
+        </div>
+      )}
     </div>
   )
 }

@@ -69,7 +69,9 @@ export function ApplicationForm({ locationSlug }: Props) {
         return
       }
 
-      router.push(`/apply/${locationSlug}/submitted`)
+      const params = new URLSearchParams({ appId: data.applicationId })
+      if (data.email) params.set('email', data.email)
+      router.push(`/apply/${locationSlug}/submitted?${params.toString()}`)
     } catch {
       setError('Network error. Please check your connection and try again.')
     } finally {
