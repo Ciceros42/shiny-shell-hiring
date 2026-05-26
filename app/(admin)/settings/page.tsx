@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import SettingsClient from '@/components/admin/settings/SettingsClient'
+import VapiSyncButton from '@/components/admin/settings/VapiSyncButton'
 
 export const revalidate = 0
 
@@ -60,6 +61,14 @@ export default async function SettingsPage({
           Calendar error: {calendar_error}
         </div>
       )}
+
+      {/* Vapi Assistant */}
+      <div className="mb-6 bg-white rounded-lg border border-gray-200 p-5">
+        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">
+          Vapi AI Assistant
+        </h2>
+        <VapiSyncButton hasAssistantId={!!process.env.VAPI_ASSISTANT_ID} />
+      </div>
 
       <SettingsClient
         userId={user.id}
