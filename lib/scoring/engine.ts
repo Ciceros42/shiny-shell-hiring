@@ -1,7 +1,9 @@
 import OpenAI from 'openai'
 import { adminDb } from '@/lib/supabase/admin'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+function getOpenAI() {
+  return new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+}
 
 export interface ScoredAnswer {
   questionId: string
@@ -119,7 +121,7 @@ Respond as JSON only:
 
   const callOpenAI = async (extraInstruction = '') => {
     const content = extraInstruction ? prompt + `\n\n${extraInstruction}` : prompt
-    return openai.chat.completions.create({
+    return getOpenAI().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content }],
       response_format: { type: 'json_object' },
@@ -235,7 +237,7 @@ Respond as JSON only:
   let parsed: { answers: Array<{ questionId: string; answerText: string }> }
 
   try {
-    const response = await openai.chat.completions.create({
+    const response = await getOpenAI().chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [{ role: 'user', content: prompt }],
       response_format: { type: 'json_object' },
