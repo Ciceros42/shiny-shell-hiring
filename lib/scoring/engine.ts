@@ -101,7 +101,9 @@ export async function batchScoreAndSummarize(
     }
   }
 
-  const prompt = `You are evaluating a job applicant for an entry-level position.
+  const DEFAULT_RUBRIC = 'Score based on the specificity, relevance, and enthusiasm of the answer. A vague or one-word answer scores low (0–40). A clear, specific answer scores mid (40–75). A detailed, enthusiastic, well-reasoned answer scores high (75–100).'
+
+  const prompt = `You are evaluating a job applicant for an entry-level carwash position. Be a fair but realistic grader — most applicants should score in the 40–75 range. Reserve 85+ for genuinely strong, specific answers and give below 40 for vague or dismissive ones.
 
 For each answer below, score it 0-100 against its rubric.
 Also provide inflection_notes (2 sentences: energy, engagement, confidence).
@@ -109,7 +111,7 @@ Also provide qualitative_summary (1-2 sentences: overall fit).
 Also provide manager_briefing (max 60 words): "Strengths: [2 items]. Concern: [1 item]. Suggested question: [one specific follow-up grounded in what the applicant actually said]"
 
 Questions and answers:
-${scoredQuestions.map((a, i) => `[${i + 1}] Rubric: "${a.question.rubric}"\n       Answer: "${a.answerText}"`).join('\n\n')}
+${scoredQuestions.map((a, i) => `[${i + 1}] Rubric: "${a.question.rubric ?? DEFAULT_RUBRIC}"\n       Answer: "${a.answerText}"`).join('\n\n')}
 
 Respond as JSON only:
 {

@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { adminDb } from '@/lib/supabase/admin'
 
 export const revalidate = 0
 
@@ -25,7 +26,6 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
   const { id } = await params
   const supabase = await createClient()
 
-  // Fetch applicant — RLS ensures the manager can only see applicants linked to their location
   const { data: applicant } = await supabase
     .from('applicants')
     .select('id, name, phone, email, sms_opted_out, created_at')
@@ -34,7 +34,6 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
 
   if (!applicant) notFound()
 
-  // Fetch all applications for this applicant
   const { data: appRows } = await supabase
     .from('applications')
     .select(`
@@ -66,16 +65,63 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
     created_at: string
     location_id: string
     locations: { name: string } | null
-    // Supabase returns reverse-FK relations as arrays
     screen_results: ScreenResultRow[]
     interviews: InterviewRow[]
   }
 
   const apps = (appRows ?? []) as unknown as AppDetail[]
+  const appIds = apps.map((a) => a.id)
+
+  // Fetch per-question answer breakdowns via admin client
+  type AnswerRow = {
+    applicationId: string
+    questionText: string
+    questionType: string
+    answerText: string
+    score: number | null
+    aiReasoning: string | null
+    orderIndex: number
+  }
+
+  const answersByApp: Record<string, AnswerRow[]> = {}
+
+  if (appIds.length > 0) {
+    const { data: screenCalls } = await adminDb
+      .from('screen_calls')
+      .select('id, application_id')
+      .in('application_id', appIds)
+      .eq('status', 'completed')
+
+    if (screenCalls && screenCalls.length > 0) {
+      const screenCallIds = screenCalls.map((sc) => sc.id)
+
+      const { data: answers } = await adminDb
+        .from('screen_answers')
+        .select('screen_call_id, answer_text, score, ai_reasoning, order_index, questions(variants, type)')
+        .in('screen_call_id', screenCallIds)
+        .order('order_index', { ascending: true })
+
+      for (const ans of answers ?? []) {
+        const sc = screenCalls.find((s) => s.id === ans.screen_call_id)
+        if (!sc) continue
+        const appId = sc.application_id
+        if (!answersByApp[appId]) answersByApp[appId] = []
+        const q = ans.questions as unknown as { variants: string[]; type: string } | null
+        answersByApp[appId].push({
+          applicationId: appId,
+          questionText: q?.variants?.[0] ?? '—',
+          questionType: q?.type ?? 'scored',
+          answerText: ans.answer_text,
+          score: ans.score as number | null,
+          aiReasoning: ans.ai_reasoning as string | null,
+          orderIndex: ans.order_index,
+        })
+      }
+    }
+  }
 
   return (
     <div className="p-8 max-w-3xl">
-      {/* Back */}
       <Link href="/applicants" className="text-sm text-blue-600 hover:underline mb-6 inline-block">
         ← Back to Applicants
       </Link>
@@ -86,9 +132,7 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
           <div>
             <h1 className="text-xl font-bold text-gray-900">{applicant.name}</h1>
             <p className="text-sm text-gray-500 mt-0.5">{applicant.phone}</p>
-            {applicant.email && (
-              <p className="text-sm text-gray-500">{applicant.email}</p>
-            )}
+            {applicant.email && <p className="text-sm text-gray-500">{applicant.email}</p>}
           </div>
           <div className="text-right shrink-0">
             {applicant.sms_opted_out && (
@@ -103,33 +147,27 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
         </div>
       </div>
 
-      {/* Application history */}
       <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">
         Applications ({apps.length})
       </h2>
 
-      {apps.length === 0 && (
-        <p className="text-sm text-gray-400">No applications found.</p>
-      )}
+      {apps.length === 0 && <p className="text-sm text-gray-400">No applications found.</p>}
 
       <div className="space-y-4">
         {apps.map((app) => {
           const sr = app.screen_results?.[0] ?? null
-          // Pick the most recent non-cancelled interview
           const interview = app.interviews?.find(
             (i) => i.status !== 'cancelled' && i.status !== 'rescheduled'
           ) ?? app.interviews?.[0] ?? null
           const slotTime = interview?.interview_slots?.[0]?.start_time ?? null
-          const pct = sr ? Math.round((sr.total_score / Math.max(sr.threshold_at_time, 1)) * 100) : null
+          const answers = answersByApp[app.id] ?? []
 
           return (
             <div key={app.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-              {/* App header */}
+              {/* Header */}
               <div className="px-5 py-4 flex items-center justify-between gap-4 border-b border-gray-100">
                 <div>
-                  <p className="text-sm font-medium text-gray-900">
-                    {app.locations?.name ?? '—'}
-                  </p>
+                  <p className="text-sm font-medium text-gray-900">{app.locations?.name ?? '—'}</p>
                   <p className="text-xs text-gray-400 mt-0.5">
                     Applied {new Date(app.created_at).toLocaleDateString()}
                   </p>
@@ -144,29 +182,74 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
                 <div className="px-5 py-4 border-b border-gray-100">
                   <div className="flex items-center justify-between mb-2">
                     <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Screen Result</p>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-3">
                       <span className={`text-xs font-bold ${sr.passed ? 'text-green-600' : 'text-red-600'}`}>
                         {sr.passed ? 'PASS' : 'FAIL'}
                       </span>
-                      <span className="text-xs text-gray-500">
-                        {sr.total_score}/{sr.threshold_at_time} pts
-                      </span>
-                      {pct !== null && (
-                        <ScoreBar pct={Math.min(pct, 100)} passed={sr.passed} />
-                      )}
+                      <span className="text-sm font-bold text-gray-900">{sr.total_score}</span>
+                      <span className="text-xs text-gray-400">/ {sr.threshold_at_time} to pass</span>
+                      <div className="w-20 h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${sr.passed ? 'bg-green-500' : 'bg-red-400'}`}
+                          style={{ width: `${Math.min(sr.total_score, 100)}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
                   <p className="text-sm text-gray-700 leading-relaxed">{sr.qualitative_summary}</p>
                   {sr.manager_briefing && (
                     <details className="mt-3">
-                      <summary className="text-xs text-blue-600 cursor-pointer hover:underline">
-                        Manager briefing
-                      </summary>
+                      <summary className="text-xs text-blue-600 cursor-pointer hover:underline">Manager briefing</summary>
                       <p className="mt-2 text-sm text-gray-600 leading-relaxed bg-blue-50 rounded-md p-3">
                         {sr.manager_briefing}
                       </p>
                     </details>
                   )}
+                </div>
+              )}
+
+              {/* Per-question answer breakdown */}
+              {answers.length > 0 && (
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Answer Breakdown</p>
+                  <div className="space-y-4">
+                    {answers.map((ans, i) => (
+                      <div key={i} className="text-sm">
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <p className="font-medium text-gray-800">{ans.questionText}</p>
+                          {ans.questionType === 'scored' && ans.score !== null && (
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`text-xs font-bold ${
+                                ans.score >= 75 ? 'text-green-600' :
+                                ans.score >= 40 ? 'text-yellow-600' : 'text-red-500'
+                              }`}>
+                                {ans.score}/100
+                              </span>
+                              <div className="w-14 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full ${
+                                    ans.score >= 75 ? 'bg-green-500' :
+                                    ans.score >= 40 ? 'bg-yellow-400' : 'bg-red-400'
+                                  }`}
+                                  style={{ width: `${ans.score}%` }}
+                                />
+                              </div>
+                            </div>
+                          )}
+                          {ans.questionType === 'hard_filter' && (
+                            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shrink-0">filter</span>
+                          )}
+                          {ans.questionType === 'informational' && (
+                            <span className="text-xs bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shrink-0">info</span>
+                          )}
+                        </div>
+                        <p className="text-gray-600 bg-gray-50 rounded px-3 py-2">{ans.answerText}</p>
+                        {ans.aiReasoning && (
+                          <p className="text-xs text-gray-400 mt-1 italic">{ans.aiReasoning}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -199,10 +282,7 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
                            interview.manager_rating === 'thumbs_down' ? '👎' : '🤔'}
                         </span>
                       )}
-                      <Link
-                        href={`/interview/${interview.id}`}
-                        className="text-blue-600 hover:underline"
-                      >
+                      <Link href={`/interview/${interview.id}`} className="text-blue-600 hover:underline">
                         View →
                       </Link>
                     </div>
@@ -213,17 +293,6 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
           )
         })}
       </div>
-    </div>
-  )
-}
-
-function ScoreBar({ pct, passed }: { pct: number; passed: boolean }) {
-  return (
-    <div className="w-16 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-      <div
-        className={`h-full rounded-full ${passed ? 'bg-green-500' : 'bg-red-400'}`}
-        style={{ width: `${pct}%` }}
-      />
     </div>
   )
 }
