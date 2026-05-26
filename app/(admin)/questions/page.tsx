@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/server'
+import NewSetButton from '@/components/admin/questions/NewSetButton'
 
 export const revalidate = 0
 
@@ -26,17 +27,18 @@ export default async function QuestionsPage() {
     <div className="p-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Question Sets</h1>
+        <NewSetButton />
       </div>
 
       <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
         {rows.length === 0 && (
-          <p className="px-6 py-12 text-center text-sm text-gray-400">No question sets found.</p>
+          <p className="px-6 py-12 text-center text-sm text-gray-400">No question sets yet. Create one to get started.</p>
         )}
         <ul className="divide-y divide-gray-100">
           {rows.map((set) => (
             <li key={set.id}>
               <Link
-                href={`/admin/questions/${set.id}`}
+                href={`/questions/${set.id}`}
                 className="flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
               >
                 <div>
