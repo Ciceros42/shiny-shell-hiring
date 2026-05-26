@@ -116,7 +116,7 @@ export default async function AnalyticsPage({
     const { data: sla } = await supabase
       .rpc('get_screen_sla_stats', { p_location_id: slaLocationId })
       .single()
-    slaStats = sla as typeof slaStats
+    slaStats = sla as unknown as typeof slaStats
   }
 
   const periodLabel = days === 0 ? 'All time' : `Last ${days} days`

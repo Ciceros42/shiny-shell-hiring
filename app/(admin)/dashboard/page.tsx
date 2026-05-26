@@ -64,7 +64,7 @@ export default async function DashboardPage() {
     const { data: sla } = await supabase
       .rpc('get_screen_sla_stats', { p_location_id: slaLocationId })
       .single()
-    slaStats = sla as typeof slaStats
+    slaStats = sla as unknown as typeof slaStats
   }
 
   // Recent applications (last 10 with applicant name)
