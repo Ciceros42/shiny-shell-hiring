@@ -5,12 +5,12 @@ import { usePathname, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 const NAV_LINKS = [
-  { href: '/admin/dashboard', label: 'Dashboard' },
-  { href: '/admin/applicants', label: 'Applicants' },
-  { href: '/admin/calendar', label: 'Calendar' },
-  { href: '/admin/questions', label: 'Questions' },
-  { href: '/admin/analytics', label: 'Analytics' },
-  { href: '/admin/settings', label: 'Settings' },
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/applicants', label: 'Applicants' },
+  { href: '/calendar', label: 'Calendar' },
+  { href: '/questions', label: 'Questions' },
+  { href: '/analytics', label: 'Analytics' },
+  { href: '/settings', label: 'Settings' },
 ]
 
 export default function AdminNav() {

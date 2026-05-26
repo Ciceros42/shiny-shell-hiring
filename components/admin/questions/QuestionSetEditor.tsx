@@ -189,7 +189,7 @@ export default function QuestionSetEditor({ setId, initialJobTitle, initialThres
   return (
     <div>
       <div className="flex items-center gap-3 mb-6">
-        <Link href="/admin/questions" className="text-sm text-blue-600 hover:underline">
+        <Link href="/questions" className="text-sm text-blue-600 hover:underline">
           ← Question Sets
         </Link>
       </div>

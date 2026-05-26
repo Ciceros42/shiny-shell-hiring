@@ -76,7 +76,7 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
   return (
     <div className="p-8 max-w-3xl">
       {/* Back */}
-      <Link href="/admin/applicants" className="text-sm text-blue-600 hover:underline mb-6 inline-block">
+      <Link href="/applicants" className="text-sm text-blue-600 hover:underline mb-6 inline-block">
         ← Back to Applicants
       </Link>
 
