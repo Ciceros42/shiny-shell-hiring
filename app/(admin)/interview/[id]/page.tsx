@@ -109,7 +109,7 @@ export default async function InterviewPage({ params }: { params: Promise<Params
       {/* Back */}
       {applicant && (
         <Link
-          href={`/admin/applicants/${applicant.id}`}
+          href={`/applicants/${applicant.id}`}
           className="text-sm text-blue-600 hover:underline mb-6 inline-block"
         >
           ← {applicant.name}

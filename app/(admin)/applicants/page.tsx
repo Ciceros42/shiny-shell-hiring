@@ -121,7 +121,7 @@ export default async function ApplicantsPage({
                 <tr key={app.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-3">
                     <Link
-                      href={`/admin/applicants/${app.applicant_id}`}
+                      href={`/applicants/${app.applicant_id}`}
                       className="font-medium text-gray-900 hover:text-blue-600 transition-colors"
                     >
                       {app.applicants?.name ?? '—'}

@@ -200,7 +200,7 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
                         </span>
                       )}
                       <Link
-                        href={`/admin/interview/${interview.id}`}
+                        href={`/interview/${interview.id}`}
                         className="text-blue-600 hover:underline"
                       >
                         View →
