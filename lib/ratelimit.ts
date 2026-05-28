@@ -7,7 +7,7 @@ function getRatelimit() {
   if (!ratelimit) {
     ratelimit = new Ratelimit({
       redis: Redis.fromEnv(),
-      limiter: Ratelimit.slidingWindow(3, '15 m'),
+      limiter: Ratelimit.slidingWindow(20, '15 m'),
     })
   }
   return ratelimit
