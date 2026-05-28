@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import { adminDb } from '@/lib/supabase/admin'
+import SimulateCallButton from '@/components/admin/applicants/SimulateCallButton'
 
 export const revalidate = 0
 
@@ -176,6 +177,13 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
                   {STATUS_LABELS[app.status] ?? app.status}
                 </span>
               </div>
+
+              {/* Simulate call button — only shown when no screen result yet */}
+              {!sr && !['passed', 'failed', 'scheduled', 'interviewed', 'hired'].includes(app.status) && (
+                <div className="px-5 py-3 border-b border-gray-100">
+                  <SimulateCallButton applicationId={app.id} />
+                </div>
+              )}
 
               {/* Screen result */}
               {sr && (
