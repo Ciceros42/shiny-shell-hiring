@@ -1,5 +1,5 @@
 import { adminDb } from '@/lib/supabase/admin'
-import { twilioClient } from '@/lib/twilio/client'
+import { getTwilioClient as twilioClient } from '@/lib/twilio/client'
 
 // Fix 1: Price is NOT in the statusCallback body — update status immediately,
 // then fetch price separately after delivery/failure.
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
   if (status === 'delivered' || status === 'undelivered' || status === 'failed') {
     // Fire-and-forget price fetch — non-critical, best-effort
-    twilioClient
+    twilioClient()
       .messages(sid)
       .fetch()
       .then(async (msg) => {

@@ -10,7 +10,7 @@ import { getLocationBySlug } from '@/lib/db/locations'
 import { getUrgentShiftLabel } from '@/lib/db/slots'
 import { sendSMS } from '@/lib/twilio/sms'
 import { SMS } from '@/lib/twilio/messages'
-import { twilioClient } from '@/lib/twilio/client'
+import { getTwilioClient as twilioClient } from '@/lib/twilio/client'
 
 export async function POST(req: Request) {
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
   if (process.env.TWILIO_LOOKUP_ENABLED === 'true') {
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const lookup: any = await twilioClient.lookups.v2
+      const lookup: any = await twilioClient().lookups.v2
         .phoneNumbers(normalizedPhone)
         .fetch({ fields: 'line_type_intelligence' } as never)
       const lineType: string | undefined = lookup?.lineTypeIntelligence?.type

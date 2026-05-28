@@ -1,7 +1,7 @@
 import twilio from 'twilio'
 import * as Sentry from '@sentry/nextjs'
 import { adminDb } from '@/lib/supabase/admin'
-import { twilioClient } from '@/lib/twilio/client'
+import { getTwilioClient as twilioClient } from '@/lib/twilio/client'
 import { sendSMS } from '@/lib/twilio/sms'
 import { SMS } from '@/lib/twilio/messages'
 import { createRescheduleMagicLink } from '@/lib/db/magic-links'

@@ -1,6 +1,6 @@
 import * as Sentry from '@sentry/nextjs'
 import { adminDb } from '@/lib/supabase/admin'
-import { twilioClient } from '@/lib/twilio/client'
+import { getTwilioClient as twilioClient } from '@/lib/twilio/client'
 
 // Fix 2: drain pending_sms rows whose send_after has passed
 export async function drainPendingSms(): Promise<void> {
@@ -16,7 +16,7 @@ export async function drainPendingSms(): Promise<void> {
 
   for (const row of rows ?? []) {
     try {
-      const msg = await twilioClient.messages.create({
+      const msg = await twilioClient().messages.create({
         to: row.to_phone,
         from: process.env.TWILIO_PHONE_NUMBER!,
         body: row.body,

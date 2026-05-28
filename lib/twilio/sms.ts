@@ -1,7 +1,7 @@
 import { addDays, set, startOfDay } from 'date-fns'
 import { fromZonedTime, toZonedTime } from 'date-fns-tz'
 import { adminDb } from '@/lib/supabase/admin'
-import { twilioClient } from './client'
+import { getTwilioClient as twilioClient } from './client'
 
 export interface SendSMSOptions {
   bypassQuietHours?: boolean
@@ -95,7 +95,7 @@ export async function sendSMS(
     return
   }
 
-  const msg = await twilioClient.messages.create({
+  const msg = await twilioClient().messages.create({
     to,
     from: process.env.TWILIO_PHONE_NUMBER!,
     body,
