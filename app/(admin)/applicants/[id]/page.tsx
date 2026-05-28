@@ -40,20 +40,11 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
     .select(`
       id, status, created_at, location_id,
       locations(name),
-      screen_results(passed, total_score, threshold_at_time, qualitative_summary, manager_briefing, created_at),
       interviews(id, status, manager_rating, interview_slots(start_time))
     `)
     .eq('applicant_id', id)
     .order('created_at', { ascending: false })
 
-  type ScreenResultRow = {
-    passed: boolean
-    total_score: number
-    threshold_at_time: number
-    qualitative_summary: string
-    manager_briefing: string | null
-    created_at: string
-  }
   type InterviewRow = {
     id: string
     status: string
@@ -66,12 +57,31 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
     created_at: string
     location_id: string
     locations: { name: string } | null
-    screen_results: ScreenResultRow[]
     interviews: InterviewRow[]
   }
 
   const apps = (appRows ?? []) as unknown as AppDetail[]
   const appIds = apps.map((a) => a.id)
+
+  // Fetch screen_results via adminDb — RLS requires manager_user_id linkage which may not be set
+  type ScreenResultRow = {
+    application_id: string
+    passed: boolean
+    total_score: number
+    threshold_at_time: number
+    qualitative_summary: string
+    manager_briefing: string | null
+  }
+  const screenResultsByApp: Record<string, ScreenResultRow> = {}
+  if (appIds.length > 0) {
+    const { data: srRows } = await adminDb
+      .from('screen_results')
+      .select('application_id, passed, total_score, threshold_at_time, qualitative_summary, manager_briefing')
+      .in('application_id', appIds)
+    for (const sr of srRows ?? []) {
+      screenResultsByApp[(sr as ScreenResultRow).application_id] = sr as ScreenResultRow
+    }
+  }
 
   // Fetch per-question answer breakdowns via admin client
   type AnswerRow = {
@@ -156,7 +166,7 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
 
       <div className="space-y-4">
         {apps.map((app) => {
-          const sr = app.screen_results?.[0] ?? null
+          const sr = screenResultsByApp[app.id] ?? null
           const interview = app.interviews?.find(
             (i) => i.status !== 'cancelled' && i.status !== 'rescheduled'
           ) ?? app.interviews?.[0] ?? null
