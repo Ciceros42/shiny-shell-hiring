@@ -89,7 +89,12 @@ export async function POST(req: Request) {
     answerText: a.answer_text,
   }))
 
-  const batchResult = await batchScoreAndSummarize(answers, questionSet.questions)
+  let batchResult
+  try {
+    batchResult = await batchScoreAndSummarize(answers, questionSet.questions)
+  } catch (err) {
+    return NextResponse.json({ error: `OpenAI scoring failed: ${String(err)}` }, { status: 500 })
+  }
 
   // Update scores on the rows we just inserted
   for (const scored of batchResult.scoredAnswers) {
@@ -111,18 +116,26 @@ export async function POST(req: Request) {
     batchResult.qualitativeSummary
   )
 
-  await saveScreenResult({
-    applicationId,
-    passed: passFailResult.passed,
-    failReason: passFailResult.failReason,
-    qualitativeSummary: passFailResult.qualitativeSummary,
-    managerBriefing: batchResult.managerBriefing,
-    scoredAnswers: batchResult.scoredAnswers,
-    totalScore: passFailResult.totalScore,
-    thresholdAtTime: questionSet.passThreshold,
-  })
+  try {
+    await saveScreenResult({
+      applicationId,
+      passed: passFailResult.passed,
+      failReason: passFailResult.failReason,
+      qualitativeSummary: passFailResult.qualitativeSummary,
+      managerBriefing: batchResult.managerBriefing,
+      scoredAnswers: batchResult.scoredAnswers,
+      totalScore: passFailResult.totalScore,
+      thresholdAtTime: questionSet.passThreshold,
+    })
+  } catch (err) {
+    return NextResponse.json({ error: `saveScreenResult failed: ${String(err)}` }, { status: 500 })
+  }
 
-  await updateApplicationStatus(applicationId, passFailResult.passed ? 'passed' : 'failed')
+  try {
+    await updateApplicationStatus(applicationId, passFailResult.passed ? 'passed' : 'failed')
+  } catch (err) {
+    return NextResponse.json({ error: `updateApplicationStatus failed: ${String(err)}` }, { status: 500 })
+  }
 
   return NextResponse.json({
     ok: true,
