@@ -34,10 +34,9 @@ export async function POST(req: Request) {
     .eq('id', profile.company_id)
     .single()
 
+  const vapiSettings = (company?.settings as Record<string, Record<string, unknown>> | null)?.vapi
   const existingAssistantId: string | undefined =
-    (company?.settings as Record<string, unknown>)?.vapi &&
-    ((company.settings as Record<string, Record<string, unknown>>).vapi?.assistantId as string) ||
-    undefined
+    typeof vapiSettings?.assistantId === 'string' ? vapiSettings.assistantId : undefined
 
   // Push to Vapi
   const vapiConfig = buildAssistantConfig(body, `${baseUrl}/api/webhooks/vapi`)
