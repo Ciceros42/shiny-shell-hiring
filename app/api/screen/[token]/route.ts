@@ -5,6 +5,7 @@ import { updateApplicationStatus } from '@/lib/db/applications'
 import { getApplicationWithDetails } from '@/lib/db/applications'
 import { checkDailyCallLimit, initiateVapiCall } from '@/lib/vapi/client'
 import { buildAssistantOverrides } from '@/lib/vapi/assistant'
+import { adminDb } from '@/lib/supabase/admin'
 
 interface Params {
   params: Promise<{ token: string }>
@@ -50,10 +51,32 @@ export async function POST(_req: Request, { params }: Params) {
 
   const overrides = buildAssistantOverrides(applicantName, questions)
 
+  // Look up company's Vapi assistant ID from DB
+  const companyId = (appDetails.locations as { company_id: string } | null)?.company_id
+  if (!companyId) {
+    return NextResponse.json({ error: 'Company not found for this application' }, { status: 500 })
+  }
+
+  const { data: company } = await adminDb
+    .from('companies')
+    .select('settings')
+    .eq('id', companyId)
+    .single()
+
+  const assistantId: string | undefined =
+    (company?.settings as Record<string, Record<string, unknown>> | null)?.vapi?.assistantId as string | undefined
+
+  if (!assistantId) {
+    return NextResponse.json(
+      { error: 'No AI assistant configured for this company. Ask your admin to deploy the assistant in Settings.' },
+      { status: 503 }
+    )
+  }
+
   // Initiate Vapi call — this returns immediately (Vapi dials asynchronously)
   const { vapiCallId } = await initiateVapiCall({
     toPhone: applicantPhone,
-    assistantId: process.env.VAPI_ASSISTANT_ID!,
+    assistantId,
     phoneNumberId: process.env.VAPI_PHONE_NUMBER_ID!,
     assistantOverrides: overrides,
   })

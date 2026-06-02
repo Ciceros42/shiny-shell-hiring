@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
+import { adminDb } from '@/lib/supabase/admin'
 import SettingsClient from '@/components/admin/settings/SettingsClient'
-import VapiSyncButton from '@/components/admin/settings/VapiSyncButton'
+import VapiAssistantConfig from '@/components/admin/settings/VapiAssistantConfig'
+import { DEFAULT_VAPI_CONFIG, type VapiAssistantConfig as VapiConfig } from '@/lib/types/vapi'
 
 export const revalidate = 0
 
@@ -39,7 +41,6 @@ export default async function SettingsPage({
 
   const locationRows = (locations ?? []) as LocationRow[]
 
-  // For location managers, only their own location
   const managerLocation = profile?.role === 'location_manager'
     ? locationRows.find((l) => l.id === profile.location_id) ?? null
     : null
@@ -47,8 +48,42 @@ export default async function SettingsPage({
   const calendarConnected = !!(profile as { calendar_token_encrypted?: string | null } | null)
     ?.calendar_token_encrypted
 
+  // Load company Vapi config
+  let vapiConfig: VapiConfig = DEFAULT_VAPI_CONFIG
+  let vapiAssistantId: string | null = null
+
+  const companyId = (profile as { company_id?: string } | null)?.company_id
+  if (companyId) {
+    const { data: company } = await adminDb
+      .from('companies')
+      .select('name, settings')
+      .eq('id', companyId)
+      .single()
+
+    if (company) {
+      const stored = (company.settings as Record<string, unknown>)?.vapi as Record<string, unknown> | undefined
+      if (stored) {
+        vapiAssistantId = (stored.assistantId as string) ?? null
+        vapiConfig = {
+          assistantPersonaName: (stored.assistantPersonaName as string) ?? DEFAULT_VAPI_CONFIG.assistantPersonaName,
+          companyName: (stored.companyName as string) ?? company.name,
+          jobTitle: (stored.jobTitle as string) ?? DEFAULT_VAPI_CONFIG.jobTitle,
+          voiceId: (stored.voiceId as string) ?? DEFAULT_VAPI_CONFIG.voiceId,
+          openingLine: (stored.openingLine as string) ?? DEFAULT_VAPI_CONFIG.openingLine,
+          closingLine: (stored.closingLine as string) ?? DEFAULT_VAPI_CONFIG.closingLine,
+          payAndScheduleResponse: (stored.payAndScheduleResponse as string) ?? DEFAULT_VAPI_CONFIG.payAndScheduleResponse,
+          maxCallDurationMinutes: (stored.maxCallDurationMinutes as number) ?? DEFAULT_VAPI_CONFIG.maxCallDurationMinutes,
+          tone: (stored.tone as VapiConfig['tone']) ?? DEFAULT_VAPI_CONFIG.tone,
+        }
+      } else {
+        // Pre-fill company name from the companies table
+        vapiConfig = { ...DEFAULT_VAPI_CONFIG, companyName: company.name }
+      }
+    }
+  }
+
   return (
-    <div className="p-8 max-w-2xl">
+    <div className="p-8 max-w-3xl">
       <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
 
       {calendar_connected === '1' && (
@@ -62,13 +97,16 @@ export default async function SettingsPage({
         </div>
       )}
 
-      {/* Vapi Assistant */}
-      <div className="mb-6 bg-white rounded-lg border border-gray-200 p-5">
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">
-          Vapi AI Assistant
+      {/* Vapi AI Assistant */}
+      <section className="mb-6 bg-white rounded-lg border border-gray-200 p-5">
+        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1">
+          AI Screening Assistant
         </h2>
-        <VapiSyncButton hasAssistantId={!!process.env.VAPI_ASSISTANT_ID} />
-      </div>
+        <p className="text-xs text-gray-400 mb-5">
+          Configure the AI that calls applicants for phone screening. Changes go live when you click Deploy.
+        </p>
+        <VapiAssistantConfig initialConfig={vapiConfig} assistantId={vapiAssistantId} />
+      </section>
 
       <SettingsClient
         userId={user.id}

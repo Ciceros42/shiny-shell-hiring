@@ -1,3 +1,5 @@
+import type { VapiAssistantConfig } from '@/lib/types/vapi'
+
 export interface AssistantOverrides {
   variableValues: Record<string, string>
 }
@@ -31,34 +33,45 @@ export function buildAssistantOverrides(
   }
 }
 
-export function buildAssistantConfig(serverUrl: string) {
-  const systemPrompt = `You are a friendly phone screening assistant for Shiny Shell Carwash. You are calling {{applicantName}} about their job application.
+function buildSystemPrompt(config: VapiAssistantConfig): string {
+  const toneDesc = {
+    friendly: 'warm, upbeat, and conversational — like a friendly HR person',
+    professional: 'professional and courteous — clear and to the point',
+    casual: 'casual and relaxed — like a friendly coworker',
+  }[config.tone]
+
+  return `You are a phone screening assistant named ${config.assistantPersonaName} for ${config.companyName}. You are calling {{applicantName}} about their application for the ${config.jobTitle} position.
+
+Your opening line when the call connects: "${config.openingLine}"
 
 Your job is to ask the questions below in order. After the applicant answers each question, immediately call the recordAnswer function with the exact questionId shown and the applicant's answer before moving on.
 
 {{questionScript}}
 
 Guidelines:
-- Be warm, upbeat, and conversational — like a friendly HR person
-- Keep the total call under 5 minutes
+- Be ${toneDesc}
+- Keep the total call under ${config.maxCallDurationMinutes} minutes
 - After recording each answer, naturally transition to the next question
-- After all questions are answered, thank them enthusiastically and say someone from the team will be in touch soon
+- After all questions are answered, say: "${config.closingLine}"
 - End the call politely
 - Never read out the questionId values to the applicant — they are internal only
-- If asked about pay, hours, or specific schedule details, say the hiring manager will go over all of that at the interview`
+- If asked about pay, hours, or specific schedule details, say: "${config.payAndScheduleResponse}"`
+}
 
+export function buildAssistantConfig(config: VapiAssistantConfig, serverUrl: string) {
   return {
-    name: 'Shiny Shell Screener',
+    name: `${config.companyName} Screener`,
     model: {
       provider: 'openai',
       model: 'gpt-4o-mini',
-      messages: [{ role: 'system', content: systemPrompt }],
+      messages: [{ role: 'system', content: buildSystemPrompt(config) }],
       tools: [
         {
           type: 'function',
           function: {
             name: 'recordAnswer',
-            description: 'Record the applicant\'s answer to a screening question. Call this immediately after each answer before asking the next question.',
+            description:
+              "Record the applicant's answer to a screening question. Call this immediately after each answer before asking the next question.",
             parameters: {
               type: 'object',
               properties: {
@@ -79,7 +92,7 @@ Guidelines:
     },
     voice: {
       provider: '11labs',
-      voiceId: 'paula',
+      voiceId: config.voiceId,
     },
     serverUrl,
     serverUrlSecret: process.env.VAPI_WEBHOOK_SECRET ?? undefined,
