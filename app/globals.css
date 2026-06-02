@@ -35,6 +35,13 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Brand theme — overridden per-company by layout injection */
+  --brand-primary: #1e3c6c;
+  --brand-primary-fg: #ffffff;
+  --brand-primary-muted: rgba(255, 255, 255, 0.7);
+  --brand-font: 'Gotham', Arial, sans-serif;
+  --brand-radius: 0.375rem;
 }
 
 @theme inline {

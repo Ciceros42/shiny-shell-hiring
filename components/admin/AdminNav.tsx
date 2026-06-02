@@ -13,7 +13,11 @@ const NAV_LINKS = [
   { href: '/settings', label: 'Settings' },
 ]
 
-export default function AdminNav() {
+interface Props {
+  companyName: string
+}
+
+export default function AdminNav({ companyName }: Props) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -27,7 +31,7 @@ export default function AdminNav() {
   return (
     <nav className="w-56 bg-white border-r border-gray-200 flex flex-col shrink-0">
       <div className="px-4 py-5 border-b border-gray-200">
-        <p className="text-sm font-bold text-gray-900">Shiny Shell</p>
+        <p className="text-sm font-bold text-gray-900">{companyName}</p>
         <p className="text-xs text-gray-500">Hiring Portal</p>
       </div>
 
@@ -39,10 +43,16 @@ export default function AdminNav() {
               <Link
                 href={href}
                 className={`block rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                  active
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
+                  active ? '' : 'text-gray-700 hover:bg-gray-100 hover:text-gray-900'
                 }`}
+                style={
+                  active
+                    ? {
+                        backgroundColor: 'color-mix(in srgb, var(--brand-primary) 12%, transparent)',
+                        color: 'var(--brand-primary)',
+                      }
+                    : undefined
+                }
               >
                 {label}
               </Link>
