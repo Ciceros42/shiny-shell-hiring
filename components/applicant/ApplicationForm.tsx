@@ -6,9 +6,10 @@ import { AvailabilityPicker } from './AvailabilityPicker'
 
 interface Props {
   locationSlug: string
+  jobSlug: string
 }
 
-export function ApplicationForm({ locationSlug }: Props) {
+export function ApplicationForm({ locationSlug, jobSlug }: Props) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,6 +51,7 @@ export function ApplicationForm({ locationSlug }: Props) {
           phone: phone.trim(),
           email: email.trim() || undefined,
           locationSlug,
+          jobSlug,
           availability,
           hasTransportation: hasTransportation!,
           website,
@@ -71,7 +73,7 @@ export function ApplicationForm({ locationSlug }: Props) {
 
       const params = new URLSearchParams({ appId: data.applicationId })
       if (data.email) params.set('email', data.email)
-      router.push(`/apply/${locationSlug}/submitted?${params.toString()}`)
+      router.push(`/apply/${locationSlug}/${jobSlug}/submitted?${params.toString()}`)
     } catch {
       setError('Network error. Please check your connection and try again.')
     } finally {

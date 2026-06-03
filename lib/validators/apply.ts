@@ -5,6 +5,7 @@ export const ApplySchema = z.object({
   phone: z.string().min(7).max(20),
   email: z.string().email().optional().or(z.literal('')),
   locationSlug: z.string().min(1),
+  jobSlug: z.string().min(1),
   availability: z.object({
     days: z.array(z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'])).min(1),
     shifts: z.array(z.enum(['morning', 'afternoon', 'evening'])).min(1),

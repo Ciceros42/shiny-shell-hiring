@@ -7,6 +7,7 @@ import { upsertApplicant, addToTalentPool } from '@/lib/db/applicants'
 import { createApplication, updateApplicationStatus } from '@/lib/db/applications'
 import { createMagicLink } from '@/lib/db/magic-links'
 import { getLocationBySlug } from '@/lib/db/locations'
+import { getJobBySlug } from '@/lib/db/jobs'
 import { getUrgentShiftLabel } from '@/lib/db/slots'
 import { sendSMS } from '@/lib/twilio/sms'
 import { SMS } from '@/lib/twilio/messages'
@@ -18,7 +19,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 })
   }
 
-  // Fix 17: Zod validation before any other work
   let body: unknown
   try {
     body = await req.json()
@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { name, phone, email, locationSlug, availability, hasTransportation, website } = parsed.data
+  const { name, phone, email, locationSlug, jobSlug, availability, hasTransportation, website } = parsed.data
 
   // Honeypot — silently accept to avoid tipping off bots
   if (website) return NextResponse.json({ status: 'ok' })
@@ -80,11 +80,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'This location is not currently hiring' }, { status: 503 })
   }
 
-  if (!location.activeQuestionSetId) {
-    return NextResponse.json({ error: 'Location not accepting applications' }, { status: 503 })
+  // Look up the job
+  let job
+  try {
+    job = await getJobBySlug(location.companyId, jobSlug)
+  } catch {
+    return NextResponse.json({ error: 'Position not found' }, { status: 404 })
   }
 
-  // Fix 16: two-step dedup
+  if (!job.isActive) {
+    return NextResponse.json({ error: 'This position is no longer accepting applications' }, { status: 503 })
+  }
+
+  if (!job.questionSetId) {
+    return NextResponse.json({ error: 'This position is not yet configured for applications' }, { status: 503 })
+  }
+
   const applicant = await upsertApplicant({
     phone: normalizedPhone,
     email: email || undefined,
@@ -108,7 +119,8 @@ export async function POST(req: Request) {
     applicantId: applicant.id,
     companyId: location.companyId,
     locationId: location.id,
-    questionSetId: location.activeQuestionSetId,
+    jobId: job.id,
+    questionSetId: job.questionSetId,
     availability,
     hasTransportation,
     status: 'applied',
@@ -144,5 +156,7 @@ export async function POST(req: Request) {
     status: 'ok',
     applicationId: application.id,
     email: email || null,
+    locationSlug,
+    jobSlug,
   })
 }

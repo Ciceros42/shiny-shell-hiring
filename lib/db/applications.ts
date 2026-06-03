@@ -19,6 +19,7 @@ export interface Application {
   applicantId: string
   companyId: string
   locationId: string
+  jobId: string | null
   questionSetId: string
   availability: Record<string, unknown>
   hasTransportation: boolean
@@ -31,6 +32,7 @@ export async function createApplication({
   applicantId,
   companyId,
   locationId,
+  jobId,
   questionSetId,
   availability,
   hasTransportation,
@@ -40,6 +42,7 @@ export async function createApplication({
   applicantId: string
   companyId: string
   locationId: string
+  jobId: string | null
   questionSetId: string
   availability: Record<string, unknown>
   hasTransportation: boolean
@@ -52,6 +55,7 @@ export async function createApplication({
       applicant_id: applicantId,
       company_id: companyId,
       location_id: locationId,
+      job_id: jobId,
       question_set_id: questionSetId,
       availability,
       has_transportation: hasTransportation,
@@ -102,6 +106,7 @@ function mapApplication(row: Record<string, unknown>): Application {
     applicantId: row.applicant_id as string,
     companyId: row.company_id as string,
     locationId: row.location_id as string,
+    jobId: row.job_id as string | null,
     questionSetId: row.question_set_id as string,
     availability: row.availability as Record<string, unknown>,
     hasTransportation: row.has_transportation as boolean,
