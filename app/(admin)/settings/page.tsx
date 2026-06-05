@@ -3,6 +3,7 @@ import { adminDb } from '@/lib/supabase/admin'
 import SettingsClient from '@/components/admin/settings/SettingsClient'
 import VapiAssistantConfig from '@/components/admin/settings/VapiAssistantConfig'
 import { DEFAULT_VAPI_CONFIG, type VapiAssistantConfig as VapiConfig } from '@/lib/types/vapi'
+import { getCompanyPipelineMode } from '@/lib/db/companies'
 
 export const revalidate = 0
 
@@ -48,12 +49,15 @@ export default async function SettingsPage({
   const calendarConnected = !!(profile as { calendar_token_encrypted?: string | null } | null)
     ?.calendar_token_encrypted
 
-  // Load company Vapi config
+  // Load company Vapi config + pipeline mode
   let vapiConfig: VapiConfig = DEFAULT_VAPI_CONFIG
   let vapiAssistantId: string | null = null
+  let pipelineMode: 'suggestion' | 'assistant' = 'suggestion'
 
   const companyId = (profile as { company_id?: string } | null)?.company_id
   if (companyId) {
+    pipelineMode = await getCompanyPipelineMode(companyId)
+
     const { data: company } = await adminDb
       .from('companies')
       .select('name, settings')
@@ -116,6 +120,7 @@ export default async function SettingsPage({
         locations={locationRows}
         managerLocation={managerLocation}
         role={(profile as { role: string } | null)?.role ?? 'location_manager'}
+        pipelineMode={pipelineMode}
       />
     </div>
   )

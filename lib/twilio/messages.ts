@@ -10,10 +10,10 @@ export const SMS = {
     `Reminder: Your Shiny Shell screening link expires soon. Tap here to complete it: ${url}`,
 
   pass: (scheduleUrl: string) =>
-    `Great news! You passed your Shiny Shell screening. Click here to pick your interview time: ${scheduleUrl}`,
+    `Thank you for your interest in Shiny Shell Carwash! Please use the link below to schedule a follow-up interview with one of our managers: ${scheduleUrl}`,
 
   fail: () =>
-    `Thank you for your application to Shiny Shell Carwash. We appreciate your interest and wish you the best.`,
+    `Thank you for your application to Shiny Shell Carwash. We appreciate your time and wish you all the best.`,
 
   interviewConfirmation: (dateStr: string, location: string) =>
     `Your Shiny Shell interview is confirmed for ${dateStr} at ${location}. Reply R to reschedule.`,

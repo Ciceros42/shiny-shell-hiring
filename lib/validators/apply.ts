@@ -11,6 +11,7 @@ export const ApplySchema = z.object({
     shifts: z.array(z.enum(['morning', 'afternoon', 'evening'])).min(1),
   }),
   hasTransportation: z.boolean(),
+  preferEmail: z.boolean().optional(),
   website: z.string().optional(), // honeypot
 })
 

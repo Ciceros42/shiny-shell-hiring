@@ -12,6 +12,8 @@ import { createMagicLink, markMagicLinkCompleted } from '@/lib/db/magic-links'
 import { batchScoreAndSummarize, runPassFailEngine, reconcileAnswersFromTranscript } from '@/lib/scoring/engine'
 import { sendSMS } from '@/lib/twilio/sms'
 import { SMS } from '@/lib/twilio/messages'
+import { getCompanyPipelineMode } from '@/lib/db/companies'
+import { sendPassEmail, sendFailEmail } from '@/lib/email/send'
 import type { InboundEvent } from '@/lib/db/inbound-events'
 import type { ScreenResult } from '@/lib/db/screen-results'
 import type { ScreenCall } from '@/lib/db/screen'
@@ -122,19 +124,27 @@ async function processEndOfCall(event: InboundEvent): Promise<void> {
   const screenCall = await getScreenCallByVapiId(call.id as string)
   if (!screenCall) throw new Error(`No screen_call for vapi_call_id ${call.id}`)
 
-  // Fix 7: two-phase idempotency
-  const existing = await getScreenResult(screenCall.applicationId)
-  if (existing?.notifiedAt) return // fully complete — SMS already sent
-
   const application = await getApplicationById(screenCall.applicationId)
+
+  // Idempotency: skip if already fully processed
+  const existing = await getScreenResult(screenCall.applicationId)
+  if (existing?.notifiedAt) return // SMS already sent
+  if (application.status === 'screen_complete' || application.status === 'passed' || application.status === 'failed') return
+
   const applicant = await getApplicant(application.applicantId)
   const location = await getLocationById(application.locationId)
 
   if (!applicant) throw new Error(`Applicant not found for application ${application.id}`)
 
   if (existing && !existing.notifiedAt) {
-    // Scoring done but SMS not sent — skip straight to notification
-    await sendPassFailNotification(existing, applicant, location)
+    // Scoring done but not yet dispatched — re-enter dispatch
+    const pipelineMode = await getCompanyPipelineMode(application.companyId)
+    if (pipelineMode === 'suggestion') {
+      await updateApplicationStatus(application.id, 'screen_complete')
+    } else {
+      await updateApplicationStatus(application.id, existing.passed ? 'passed' : 'failed')
+      await sendPassFailNotification(existing, applicant, location)
+    }
     return
   }
 
@@ -145,6 +155,13 @@ async function processEndOfCall(event: InboundEvent): Promise<void> {
     (call.endedAt ?? call.ended_at ?? Date.now()) as string | number
   )
   const transcript = (artifact.transcript as string) ?? ''
+
+  // Guard against premature end-of-call events (Vapi can fire these on brief drops).
+  // A real screening call transcript should have at least a few hundred characters.
+  if (transcript.length < 200) {
+    Sentry.captureMessage(`Skipping end-of-call for ${screenCall.id}: transcript too short (${transcript.length} chars) — likely premature event`, 'warning')
+    return
+  }
 
   await updateScreenCall(screenCall.id, {
     status: 'completed',
@@ -179,8 +196,16 @@ async function processEndOfCall(event: InboundEvent): Promise<void> {
     thresholdAtTime: questionSet.passThreshold,
   })
 
-  await updateApplicationStatus(application.id, passFailResult.passed ? 'passed' : 'failed')
-  await sendPassFailNotification(screenResult, applicant, location)
+  const pipelineMode = await getCompanyPipelineMode(application.companyId)
+
+  if (pipelineMode === 'suggestion') {
+    // Hold at screen_complete — admin reviews and manually advances or rejects
+    await updateApplicationStatus(application.id, 'screen_complete')
+  } else {
+    // Assistant mode — act automatically
+    await updateApplicationStatus(application.id, passFailResult.passed ? 'passed' : 'failed')
+    await sendPassFailNotification(screenResult, applicant, location)
+  }
 }
 
 async function sendPassFailNotification(
@@ -188,10 +213,11 @@ async function sendPassFailNotification(
   applicant: Applicant,
   location: Location
 ): Promise<void> {
+  const useEmail = applicant.smsOptedOut && !!applicant.email
+
   if (result.passed) {
     const token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
     const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
-    // 30-min gap from call end so scoring finishes before earliest bookable slot
     const earliestBookable = new Date(Date.now() + 30 * 60 * 1000)
 
     await createMagicLink({
@@ -203,27 +229,21 @@ async function sendPassFailNotification(
     })
 
     const scheduleUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/schedule/${token}`
-    await sendSMS(
-      applicant.phone,
-      SMS.pass(scheduleUrl),
-      result.applicationId,
-      'pass',
-      location.timezone,
-      { bypassQuietHours: true }
-    )
+
+    if (useEmail) {
+      await sendPassEmail({ to: applicant.email!, name: applicant.name, scheduleUrl })
+    } else {
+      await sendSMS(applicant.phone, SMS.pass(scheduleUrl), result.applicationId, 'pass', location.timezone, { bypassQuietHours: true })
+    }
     await addToTalentPool(applicant.id, location.id, 'passed_no_schedule')
   } else {
-    await sendSMS(
-      applicant.phone,
-      SMS.fail(),
-      result.applicationId,
-      'fail',
-      location.timezone,
-      { bypassQuietHours: true }
-    )
+    if (useEmail) {
+      await sendFailEmail({ to: applicant.email!, name: applicant.name })
+    } else {
+      await sendSMS(applicant.phone, SMS.fail(), result.applicationId, 'fail', location.timezone, { bypassQuietHours: true })
+    }
     await addToTalentPool(applicant.id, location.id, 'failed_screen' as never)
   }
 
-  // Fix 7: set notified_at only after SMS confirmed — prevents duplicate sends on retry
   await markScreenResultNotified(result.applicationId)
 }

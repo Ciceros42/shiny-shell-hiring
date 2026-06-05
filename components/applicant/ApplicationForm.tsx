@@ -17,6 +17,7 @@ export function ApplicationForm({ locationSlug, jobSlug }: Props) {
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
+  const [preferEmail, setPreferEmail] = useState(false)
   const [hasTransportation, setHasTransportation] = useState<boolean | null>(null)
   const [availability, setAvailability] = useState({ days: [] as string[], shifts: [] as string[] })
   const [website, setWebsite] = useState('') // honeypot
@@ -50,6 +51,7 @@ export function ApplicationForm({ locationSlug, jobSlug }: Props) {
           name: name.trim(),
           phone: phone.trim(),
           email: email.trim() || undefined,
+          preferEmail: email.trim() ? preferEmail : undefined,
           locationSlug,
           jobSlug,
           availability,
@@ -143,6 +145,33 @@ export function ApplicationForm({ locationSlug, jobSlug }: Props) {
         />
       </div>
 
+      {email.trim() && (
+        <div>
+          <p className="mb-2 text-sm font-medium text-gray-700">
+            How would you like to receive updates about your application?
+          </p>
+          <div className="flex gap-4">
+            {[
+              { value: false, label: 'Text (SMS)' },
+              { value: true, label: 'Email' },
+            ].map(({ value, label }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setPreferEmail(value)}
+                className={`flex-1 rounded-lg border-2 py-3 text-sm font-medium transition-colors ${
+                  preferEmail === value
+                    ? 'border-blue-600 bg-blue-50 text-blue-700'
+                    : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div>
         <p className="mb-2 text-sm font-medium text-gray-700">
           Do you have reliable transportation? *
@@ -195,7 +224,9 @@ export function ApplicationForm({ locationSlug, jobSlug }: Props) {
       </button>
 
       <p className="text-center text-xs text-gray-400">
-        By submitting, you agree to receive SMS messages about your application. Reply STOP to opt out.
+        {preferEmail && email.trim()
+          ? 'Updates about your application will be sent to your email address.'
+          : 'By submitting, you agree to receive SMS messages about your application. Reply STOP to opt out.'}
       </p>
     </form>
   )

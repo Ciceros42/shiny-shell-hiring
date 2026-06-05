@@ -24,10 +24,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   } catch {}
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="h-screen bg-gray-50 flex overflow-hidden">
       <style>{`:root { ${themeToCSS(theme)} }`}</style>
       <AdminNav companyName={theme.displayName} />
-      <main className="flex-1 overflow-auto">{children}</main>
+      <main className="flex-1 overflow-auto flex flex-col">{children}</main>
     </div>
   )
 }

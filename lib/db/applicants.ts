@@ -21,10 +21,12 @@ export async function upsertApplicant({
   phone,
   email,
   name,
+  smsOptedOut = false,
 }: {
   phone: string
   email?: string
   name: string
+  smsOptedOut?: boolean
 }): Promise<Applicant> {
   const now = new Date().toISOString()
 
@@ -38,7 +40,7 @@ export async function upsertApplicant({
     if (byEmail && byEmail.phone !== phone) {
       const { data: updated } = await adminDb
         .from('applicants')
-        .update({ phone, name, updated_at: now })
+        .update({ phone, name, sms_opted_out: smsOptedOut, updated_at: now })
         .eq('id', byEmail.id)
         .select()
         .single()
@@ -48,7 +50,7 @@ export async function upsertApplicant({
 
   const { data, error } = await adminDb
     .from('applicants')
-    .upsert({ phone, email: email || null, name, updated_at: now }, { onConflict: 'phone' })
+    .upsert({ phone, email: email || null, name, sms_opted_out: smsOptedOut, updated_at: now }, { onConflict: 'phone' })
     .select()
     .single()
 

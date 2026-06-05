@@ -4,6 +4,64 @@ function getResend() {
   return new Resend(process.env.RESEND_API_KEY)
 }
 
+export async function sendPassEmail({
+  to,
+  name,
+  scheduleUrl,
+}: {
+  to: string
+  name: string
+  scheduleUrl: string
+}) {
+  const resend = getResend()
+  await resend.emails.send({
+    from: process.env.RESEND_FROM_EMAIL ?? 'hiring@shiny-shell.com',
+    to,
+    subject: `Next step: schedule your interview with Shiny Shell`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <h2 style="margin:0 0 8px">Hi ${name},</h2>
+        <p style="color:#444;margin:0 0 24px">
+          Thank you for your interest in Shiny Shell Carwash! Please use the link below to
+          schedule a follow-up interview with one of our managers.
+        </p>
+        <a href="${scheduleUrl}"
+           style="display:inline-block;background:#1e3c6c;color:#fff;text-decoration:none;
+                  padding:14px 28px;border-radius:8px;font-weight:600;font-size:16px">
+          Schedule My Interview →
+        </a>
+        <p style="color:#888;font-size:12px;margin-top:32px">
+          This link expires in 72 hours.
+        </p>
+      </div>
+    `,
+  })
+}
+
+export async function sendFailEmail({
+  to,
+  name,
+}: {
+  to: string
+  name: string
+}) {
+  const resend = getResend()
+  await resend.emails.send({
+    from: process.env.RESEND_FROM_EMAIL ?? 'hiring@shiny-shell.com',
+    to,
+    subject: `Your Shiny Shell Carwash application`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <h2 style="margin:0 0 8px">Hi ${name},</h2>
+        <p style="color:#444;margin:0 0 24px">
+          Thank you for your application to Shiny Shell Carwash. We appreciate your time
+          and wish you all the best.
+        </p>
+      </div>
+    `,
+  })
+}
+
 export async function sendScreenLinkEmail({
   to,
   name,

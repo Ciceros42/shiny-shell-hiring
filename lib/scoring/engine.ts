@@ -192,7 +192,8 @@ export function runPassFailEngine(
   // Weighted score across scored questions
   const scored = scoredAnswers.filter((a) => a.questionType === 'scored')
   if (scored.length === 0) {
-    return { passed: true, failReason: null, qualitativeSummary, totalScore: 100 }
+    // No scored answers means the call ended before questions were answered — do not auto-pass
+    return { passed: false, failReason: 'no_scored_answers', qualitativeSummary, totalScore: 0 }
   }
 
   const totalWeight = scored.reduce((sum, a) => sum + a.weight, 0)

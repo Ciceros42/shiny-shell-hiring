@@ -12,6 +12,7 @@ import { getUrgentShiftLabel } from '@/lib/db/slots'
 import { sendSMS } from '@/lib/twilio/sms'
 import { SMS } from '@/lib/twilio/messages'
 import { getTwilioClient as twilioClient } from '@/lib/twilio/client'
+import { sendScreenLinkEmail } from '@/lib/email/send'
 
 export async function POST(req: Request) {
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
@@ -31,7 +32,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { name, phone, email, locationSlug, jobSlug, availability, hasTransportation, website } = parsed.data
+  const { name, phone, email, locationSlug, jobSlug, availability, hasTransportation, preferEmail, website } = parsed.data
 
   // Honeypot — silently accept to avoid tipping off bots
   if (website) return NextResponse.json({ status: 'ok' })
@@ -96,10 +97,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'This position is not yet configured for applications' }, { status: 503 })
   }
 
+  const smsOptedOut = !!(preferEmail && email)
   const applicant = await upsertApplicant({
     phone: normalizedPhone,
     email: email || undefined,
     name,
+    smsOptedOut,
   })
 
   if (!location.isHiring) {
@@ -141,14 +144,18 @@ export async function POST(req: Request) {
   const urgentShift = await getUrgentShiftLabel(location.id)
   const screenUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/screen/${tokenStr}`
 
-  await sendSMS(
-    normalizedPhone,
-    SMS.screenLink(name, screenUrl, urgentShift),
-    application.id,
-    'screen_link',
-    location.timezone,
-    { bypassQuietHours: true }
-  )
+  if (smsOptedOut && email) {
+    await sendScreenLinkEmail({ to: email, name, screenUrl, locationName: location.name })
+  } else {
+    await sendSMS(
+      normalizedPhone,
+      SMS.screenLink(name, screenUrl, urgentShift),
+      application.id,
+      'screen_link',
+      location.timezone,
+      { bypassQuietHours: true }
+    )
+  }
 
   await updateApplicationStatus(application.id, 'sms_sent')
 

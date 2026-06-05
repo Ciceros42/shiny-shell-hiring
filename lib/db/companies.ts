@@ -24,6 +24,17 @@ export async function getCompanyTheme(companyId: string): Promise<CompanyTheme> 
   return mergeTheme(data.name, ((data.settings as Record<string, unknown>)?.theme ?? {}) as Record<string, unknown>)
 }
 
+export async function getCompanyPipelineMode(companyId: string): Promise<'suggestion' | 'assistant'> {
+  const { data } = await adminDb
+    .from('companies')
+    .select('settings')
+    .eq('id', companyId)
+    .single()
+
+  const mode = (data?.settings as Record<string, unknown> | null)?.pipeline_mode
+  return mode === 'assistant' ? 'assistant' : 'suggestion'
+}
+
 export async function getThemeByToken(token: string): Promise<CompanyTheme> {
   const { data: link } = await adminDb
     .from('magic_links')

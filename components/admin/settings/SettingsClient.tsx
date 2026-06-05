@@ -19,6 +19,7 @@ type Props = {
   locations: LocationRow[]
   managerLocation: LocationRow | null
   role: string
+  pipelineMode: 'suggestion' | 'assistant'
 }
 
 export default function SettingsClient({
@@ -28,6 +29,7 @@ export default function SettingsClient({
   locations,
   managerLocation,
   role,
+  pipelineMode: initialPipelineMode,
 }: Props) {
   const router = useRouter()
 
@@ -43,6 +45,8 @@ export default function SettingsClient({
   const [disconnecting, setDisconnecting] = useState(false)
   const [calConnected, setCalConnected] = useState(calendarConnected)
   const [error, setError] = useState<string | null>(null)
+  const [pipelineMode, setPipelineMode] = useState<'suggestion' | 'assistant'>(initialPipelineMode)
+  const [savingMode, setSavingMode] = useState(false)
 
   async function toggleHiring(locationId: string) {
     const newValue = !hiringStates[locationId]
@@ -61,6 +65,19 @@ export default function SettingsClient({
     router.refresh()
   }
 
+  async function savePipelineMode(mode: 'suggestion' | 'assistant') {
+    setSavingMode(true)
+    setError(null)
+    const res = await fetch('/api/admin/settings/mode', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+    })
+    setSavingMode(false)
+    if (!res.ok) { setError('Failed to save pipeline mode'); return }
+    setPipelineMode(mode)
+  }
+
   async function disconnectCalendar() {
     if (!confirm('Disconnect Google Calendar? Interview events will no longer be created automatically.')) return
     setDisconnecting(true)
@@ -77,6 +94,46 @@ export default function SettingsClient({
         <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2">
           {error}
         </p>
+      )}
+
+      {/* Pipeline Mode */}
+      {role === 'company_admin' && (
+        <section className="bg-white rounded-lg border border-gray-200 p-5">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1">Pipeline Mode</h2>
+          <p className="text-xs text-gray-400 mb-4">Controls what happens automatically after a screen call completes.</p>
+          <div className="space-y-3">
+            {(['suggestion', 'assistant'] as const).map((mode) => {
+              const active = pipelineMode === mode
+              return (
+                <label
+                  key={mode}
+                  className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                    active ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="pipeline_mode"
+                    value={mode}
+                    checked={active}
+                    onChange={() => savePipelineMode(mode)}
+                    disabled={savingMode}
+                    className="mt-0.5 accent-blue-600"
+                  />
+                  <div>
+                    <p className="text-sm font-medium text-gray-900 capitalize">{mode} Mode</p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {mode === 'suggestion'
+                        ? 'AI scores and recommends Pass/Fail. You review and manually advance or reject from the Applicants page.'
+                        : 'AI automatically fails applicants below the threshold and sends a scheduling SMS link to those who pass.'}
+                    </p>
+                  </div>
+                </label>
+              )
+            })}
+          </div>
+          {savingMode && <p className="text-xs text-gray-400 mt-2">Saving…</p>}
+        </section>
       )}
 
       {/* Profile */}
