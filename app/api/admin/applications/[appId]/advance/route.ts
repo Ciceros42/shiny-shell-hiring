@@ -2,16 +2,16 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth/require-admin'
 import { advanceApplicant } from '@/lib/actions/advance-applicant'
 
-interface Params { params: Promise<{ id: string }> }
+interface Params { params: Promise<{ appId: string }> }
 
 export async function POST(_req: Request, { params }: Params) {
-  const { error } = await requireAdmin()
+  const { error, profile } = await requireAdmin()
   if (error) return error
-  const { id } = await params
+  const { appId } = await params
   try {
-    await advanceApplicant(id)
+    await advanceApplicant(appId, profile.companyId)
     return NextResponse.json({ ok: true })
   } catch (err) {
-    return NextResponse.json({ error: String(err) }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }

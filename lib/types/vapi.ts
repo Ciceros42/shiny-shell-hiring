@@ -14,7 +14,7 @@ export const DEFAULT_VAPI_CONFIG: VapiAssistantConfig = {
   assistantPersonaName: 'Alex',
   companyName: '',
   jobTitle: 'Team Member',
-  voiceId: 'paula',
+  voiceId: 'TX3LPaxmHKxFdv7VOQHJ',
   openingLine:
     "Hi {{applicantName}}! This is Alex calling — I'm reaching out about your job application. Do you have a few minutes to answer some quick screening questions?",
   closingLine:
@@ -26,12 +26,12 @@ export const DEFAULT_VAPI_CONFIG: VapiAssistantConfig = {
 }
 
 export const VOICE_OPTIONS = [
+  { id: 'TX3LPaxmHKxFdv7VOQHJ', label: 'Liam — male, friendly & professional' },
+  { id: 'onwK4e9ZLuTAKqWW03F9', label: 'Daniel — male, deep & authoritative' },
+  { id: 'IKne3meq5aSn9XLyUdCD', label: 'Charlie — male, natural & conversational' },
   { id: 'paula', label: 'Paula — female, warm' },
   { id: 'rachel', label: 'Rachel — female, clear' },
   { id: 'sarah', label: 'Sarah — female, friendly' },
-  { id: 'josh', label: 'Josh — male, young' },
-  { id: 'adam', label: 'Adam — male, deep' },
-  { id: 'arnold', label: 'Arnold — male, authoritative' },
 ]
 
 export const TONE_OPTIONS = [

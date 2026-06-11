@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { adminDb } from '@/lib/supabase/admin'
 import QuestionSetEditor, { type QuestionRow } from '@/components/admin/questions/QuestionSetEditor'
 
 export const revalidate = 0
@@ -8,9 +8,8 @@ type Params = { setId: string }
 
 export default async function QuestionSetPage({ params }: { params: Promise<Params> }) {
   const { setId } = await params
-  const supabase = await createClient()
 
-  const { data: set } = await supabase
+  const { data: set } = await adminDb
     .from('question_sets')
     .select('id, job_title, pass_threshold, is_active')
     .eq('id', setId)
@@ -18,7 +17,7 @@ export default async function QuestionSetPage({ params }: { params: Promise<Para
 
   if (!set) notFound()
 
-  const { data: questions } = await supabase
+  const { data: questions } = await adminDb
     .from('questions')
     .select('id, type, variants, rubric, fail_value, weight, order_index')
     .eq('question_set_id', setId)

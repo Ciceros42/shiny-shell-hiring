@@ -1,5 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/auth/require-admin'
 import { adminDb } from '@/lib/supabase/admin'
+import { redirect } from 'next/navigation'
 
 export const revalidate = 60
 
@@ -28,23 +29,18 @@ export default async function AnalyticsPage({
     ? undefined
     : new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
 
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
+  const { profile, error } = await requireAdmin()
+  if (error) redirect('/login')
+  const { companyId, locationId, role } = profile
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, company_id, location_id')
-    .eq('id', user.id)
-    .single()
-
-  // --- Pipeline counts (user-auth client, RLS scoped) ---
-  let appQuery = supabase
+  // --- Pipeline counts (admin client, explicitly scoped) ---
+  let appQuery = adminDb
     .from('applications')
     .select('status, created_at, id')
+    .eq('company_id', companyId)
 
-  if (profile?.role === 'location_manager' && profile.location_id) {
-    appQuery = appQuery.eq('location_id', profile.location_id)
+  if (role === 'location_manager' && locationId) {
+    appQuery = appQuery.eq('location_id', locationId)
   }
   if (since) appQuery = appQuery.gte('created_at', since)
 
@@ -55,7 +51,6 @@ export default async function AnalyticsPage({
   const STAGE_ORDER = [
     'applied', 'sms_sent', 'screen_link_clicked', 'screening',
     'screen_complete', 'passed', 'scheduled', 'interviewed', 'hired',
-    'failed', 'no_show', 'rejected',
   ]
   // Count apps that REACHED each stage (status = this stage OR any later stage)
   const reachedCounts: Record<string, number> = {}
@@ -111,11 +106,23 @@ export default async function AnalyticsPage({
 
   // --- SLA stats ---
   type SlaStats = { median_minutes: number | null; pct_under_10_min: number | null }
-  const slaLocationId = profile?.location_id ?? null
+
+  // Company admins have no location_id — fall back to first location in their company
+  let slaLocationId = locationId ?? null
+  if (!slaLocationId) {
+    const { data: firstLoc } = await adminDb
+      .from('locations')
+      .select('id')
+      .eq('company_id', companyId)
+      .limit(1)
+      .maybeSingle()
+    slaLocationId = firstLoc?.id ?? null
+  }
+
   let slaStats: SlaStats | null = null
   if (slaLocationId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: sla } = await (supabase as any)
+    const { data: sla } = await (adminDb as any)
       .rpc('get_screen_sla_stats', { p_location_id: slaLocationId })
       .single()
     slaStats = sla as SlaStats | null
@@ -152,7 +159,7 @@ export default async function AnalyticsPage({
           sub={`${screenCallCount} calls`}
         />
         <MetricCard
-          label="Screen-to-Call"
+          label="Apply-to-Call"
           value={slaStats?.median_minutes != null ? `${slaStats.median_minutes}m` : '—'}
           sub={slaStats?.pct_under_10_min != null ? `${slaStats.pct_under_10_min}% < 10 min` : '7-day median'}
         />
@@ -194,7 +201,7 @@ export default async function AnalyticsPage({
           })}
         </div>
         <p className="mt-4 text-xs text-gray-400">
-          Each row counts applicants who reached that stage or beyond. Conversion % is relative to the previous stage.
+          Each row counts applicants who reached that stage or beyond. Rejected/failed applicants are excluded. Conversion % is relative to the previous stage.
         </p>
       </div>
 

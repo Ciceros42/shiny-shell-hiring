@@ -1,4 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/auth/require-admin'
+import { adminDb } from '@/lib/supabase/admin'
+import { redirect } from 'next/navigation'
 import type { ApplicationStatus } from '@/lib/db/applications'
 
 export const revalidate = 60
@@ -21,28 +23,21 @@ const PIPELINE_STAGES: { status: ApplicationStatus; label: string; color: string
 ]
 
 export default async function DashboardPage() {
-  const supabase = await createClient()
-
-  // Get user profile for role/scope
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, company_id, location_id, name')
-    .eq('id', user.id)
-    .single()
+  const { profile, error } = await requireAdmin()
+  if (error) redirect('/login')
+  const { companyId, locationId, role } = profile
 
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-  // Pipeline counts — RLS scopes to manager's own data automatically
-  let appQuery = supabase
+  // Pipeline counts — explicitly scoped to the active company
+  let appQuery = adminDb
     .from('applications')
     .select('status, created_at')
+    .eq('company_id', companyId)
     .gte('created_at', since30d)
 
-  if (profile?.role === 'location_manager' && profile.location_id) {
-    appQuery = appQuery.eq('location_id', profile.location_id)
+  if (role === 'location_manager' && locationId) {
+    appQuery = appQuery.eq('location_id', locationId)
   }
 
   const { data: appRows } = await appQuery
@@ -59,25 +54,26 @@ export default async function DashboardPage() {
   // SLA stats — needs a location_id; skip for company admins without a location
   type SlaStats = { median_minutes: number | null; pct_under_10_min: number | null }
   let slaStats: SlaStats | null = null
-  const slaLocationId = profile?.location_id ?? null
+  const slaLocationId = locationId ?? null
 
   if (slaLocationId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: sla } = await (supabase as any)
+    const { data: sla } = await (adminDb as any)
       .rpc('get_screen_sla_stats', { p_location_id: slaLocationId })
       .single()
     slaStats = sla as SlaStats | null
   }
 
   // Recent applications (last 10 with applicant name)
-  let recentQuery = supabase
+  let recentQuery = adminDb
     .from('applications')
     .select('id, status, created_at, applicants(name), locations(name)')
+    .eq('company_id', companyId)
     .order('created_at', { ascending: false })
     .limit(10)
 
-  if (profile?.role === 'location_manager' && profile.location_id) {
-    recentQuery = recentQuery.eq('location_id', profile.location_id)
+  if (role === 'location_manager' && locationId) {
+    recentQuery = recentQuery.eq('location_id', locationId)
   }
 
   const { data: recent } = await recentQuery
@@ -151,7 +147,7 @@ export default async function DashboardPage() {
                   <p className="text-sm font-medium text-gray-900 truncate">
                     {applicant?.name ?? '—'}
                   </p>
-                  {profile?.role === 'company_admin' && (
+                  {role === 'company_admin' && (
                     <p className="text-xs text-gray-400 truncate">{location?.name ?? ''}</p>
                   )}
                 </div>

@@ -25,9 +25,9 @@ export async function getQuestionSetWithQuestions(questionSetId: string): Promis
 
   if (error || !data) throw new Error(`getQuestionSetWithQuestions failed for ${questionSetId}`)
 
-  const questions = ((data.questions as QuestionRow[]) ?? []).sort(
-    (a, b) => a.order_index - b.order_index
-  )
+  const questions = ((data.questions as (QuestionRow & { deleted_at?: string | null })[]) ?? [])
+    .filter((q) => !q.deleted_at)
+    .sort((a, b) => a.order_index - b.order_index)
 
   return {
     id: data.id as string,

@@ -10,7 +10,7 @@ function slugify(title: string): string {
 }
 
 export async function POST(req: Request) {
-  const { error, user } = await requireAdmin()
+  const { error, profile } = await requireAdmin()
   if (error) return error
 
   const { title, description, questionSetId } = await req.json()
@@ -19,13 +19,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Title is required' }, { status: 422 })
   }
 
-  const { data: profile } = await adminDb
-    .from('profiles')
-    .select('company_id')
-    .eq('id', user.id)
-    .single()
+  if (title.trim().length > 200) {
+    return NextResponse.json({ error: 'Title must be 200 characters or fewer' }, { status: 422 })
+  }
 
-  if (!profile?.company_id) {
+  if (description && description.trim().length > 2000) {
+    return NextResponse.json({ error: 'Description must be 2000 characters or fewer' }, { status: 422 })
+  }
+
+  if (!profile?.companyId) {
     return NextResponse.json({ error: 'No company found for user' }, { status: 400 })
   }
 
@@ -35,7 +37,7 @@ export async function POST(req: Request) {
   const { data: existing } = await adminDb
     .from('jobs')
     .select('slug')
-    .eq('company_id', profile.company_id)
+    .eq('company_id', profile.companyId)
     .like('slug', `${baseSlug}%`)
 
   let slug = baseSlug
@@ -48,7 +50,7 @@ export async function POST(req: Request) {
   const { data, error: insertError } = await adminDb
     .from('jobs')
     .insert({
-      company_id: profile.company_id,
+      company_id: profile.companyId,
       title: title.trim(),
       slug,
       description: description?.trim() || null,
@@ -59,7 +61,7 @@ export async function POST(req: Request) {
     .single()
 
   if (insertError) {
-    return NextResponse.json({ error: insertError.message }, { status: 500 })
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 
   return NextResponse.json({ job: data })

@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useMemo, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 
 type SlotRow = {
   id: string
@@ -19,6 +19,8 @@ type Props = {
   hasShortage: boolean
   availableNext7: number
   managerId: string
+  calendarConnected: boolean
+  calendarEmail: string | null
 }
 
 const DURATIONS = [
@@ -33,8 +35,11 @@ export default function CalendarManager({
   timezone,
   hasShortage,
   availableNext7,
+  calendarConnected,
+  calendarEmail,
 }: Props) {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [slots, setSlots] = useState<SlotRow[]>(initialSlots)
   const [showForm, setShowForm] = useState(false)
   const [date, setDate] = useState('')
@@ -43,11 +48,20 @@ export default function CalendarManager({
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [disconnecting, setDisconnecting] = useState(false)
+  const [justConnected, setJustConnected] = useState(false)
 
-  // Today's date in local format for min constraint
+  // Show success flash when redirected back after OAuth
+  useEffect(() => {
+    if (searchParams.get('connected') === '1') {
+      setJustConnected(true)
+      const t = setTimeout(() => setJustConnected(false), 4000)
+      return () => clearTimeout(t)
+    }
+  }, [searchParams])
+
   const todayStr = new Date().toISOString().split('T')[0]
 
-  // Group slots by date (in the location's timezone)
   const grouped = useMemo(() => {
     const map = new Map<string, SlotRow[]>()
     for (const slot of slots) {
@@ -63,7 +77,6 @@ export default function CalendarManager({
     setError(null)
     setSaving(true)
 
-    // Build ISO datetimes from local date + time using a wall-clock approach
     const startLocal = new Date(`${date}T${time}:00`)
     const endLocal = new Date(startLocal.getTime() + duration * 60 * 1000)
 
@@ -85,9 +98,7 @@ export default function CalendarManager({
     }
 
     const newSlot = await res.json()
-    setSlots((s) => [...s, newSlot].sort((a, b) =>
-      a.start_time.localeCompare(b.start_time)
-    ))
+    setSlots((s) => [...s, newSlot].sort((a, b) => a.start_time.localeCompare(b.start_time)))
     setShowForm(false)
     setDate('')
     router.refresh()
@@ -108,6 +119,12 @@ export default function CalendarManager({
     router.refresh()
   }
 
+  async function disconnect() {
+    setDisconnecting(true)
+    await fetch('/api/admin/calendar/disconnect', { method: 'POST' })
+    router.refresh()
+  }
+
   function formatSlotTime(iso: string) {
     return new Date(iso).toLocaleTimeString('en-US', {
       hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone,
@@ -124,6 +141,57 @@ export default function CalendarManager({
 
   return (
     <div>
+      {/* Google Calendar connection status */}
+      {justConnected && (
+        <div className="mb-5 bg-green-50 border border-green-200 rounded-lg px-4 py-3 flex items-center gap-3">
+          <span className="text-green-500 text-lg">✓</span>
+          <p className="text-sm font-medium text-green-800">
+            Google Calendar connected{calendarEmail ? ` as ${calendarEmail}` : ''}. Interview bookings will now create calendar events automatically.
+          </p>
+        </div>
+      )}
+
+      {!calendarConnected && !justConnected && (
+        <div className="mb-6 bg-white border border-gray-200 rounded-xl p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Connect Google Calendar</p>
+            <p className="text-sm text-gray-500 mt-0.5">
+              When a candidate books an interview, it will automatically appear on your calendar.
+            </p>
+          </div>
+          <a
+            href="/api/admin/calendar/connect"
+            className="flex items-center gap-2.5 rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 shadow-sm transition-colors whitespace-nowrap shrink-0"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            Sign in with Google
+          </a>
+        </div>
+      )}
+
+      {calendarConnected && !justConnected && (
+        <div className="mb-5 flex items-center justify-between bg-green-50 border border-green-200 rounded-lg px-4 py-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-green-500 text-sm">✓</span>
+            <p className="text-sm text-green-800">
+              Google Calendar connected{calendarEmail ? <> as <span className="font-medium">{calendarEmail}</span></> : ''}
+            </p>
+          </div>
+          <button
+            onClick={disconnect}
+            disabled={disconnecting}
+            className="text-xs text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+          >
+            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+          </button>
+        </div>
+      )}
+
       {/* Shortage warning */}
       {hasShortage && (
         <div className="mb-5 bg-amber-50 border border-amber-300 rounded-lg px-4 py-3 flex items-start gap-3">
@@ -196,9 +264,7 @@ export default function CalendarManager({
               {saving ? 'Adding…' : 'Add'}
             </button>
           </div>
-          {error && (
-            <p className="mt-3 text-sm text-red-600">{error}</p>
-          )}
+          {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
           <p className="mt-2 text-xs text-gray-400">
             Times are in your browser's local timezone. Candidates see slots converted to their own timezone.
           </p>
@@ -237,9 +303,7 @@ export default function CalendarManager({
                       className={`flex items-center justify-between px-4 py-2.5 ${booked ? 'opacity-60' : ''}`}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-sm text-gray-900 font-medium">
-                          {start} – {end}
-                        </span>
+                        <span className="text-sm text-gray-900 font-medium">{start} – {end}</span>
                         {booked && (
                           <span className="text-xs bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded-full font-medium">
                             booked

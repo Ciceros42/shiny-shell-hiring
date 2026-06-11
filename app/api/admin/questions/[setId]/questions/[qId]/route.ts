@@ -15,10 +15,19 @@ const PatchSchema = z.object({
 type RouteContext = { params: Promise<{ setId: string; qId: string }> }
 
 export async function PATCH(req: Request, { params }: RouteContext) {
-  const { error } = await requireAdmin()
+  const { profile, error } = await requireAdmin()
   if (error) return error
 
-  const { qId } = await params
+  const { setId, qId } = await params
+
+  const { data: set } = await adminDb
+    .from('question_sets')
+    .select('id')
+    .eq('id', setId)
+    .eq('company_id', profile.companyId)
+    .single()
+  if (!set) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
   const body = await req.json()
   const parsed = PatchSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
@@ -27,23 +36,33 @@ export async function PATCH(req: Request, { params }: RouteContext) {
     .from('questions')
     .update(parsed.data)
     .eq('id', qId)
+    .eq('question_set_id', setId)
     .is('deleted_at', null)
 
-  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
+  if (dbError) return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
 
 export async function DELETE(_req: Request, { params }: RouteContext) {
-  const { error } = await requireAdmin()
+  const { profile, error } = await requireAdmin()
   if (error) return error
 
-  const { qId } = await params
+  const { setId, qId } = await params
+
+  const { data: set } = await adminDb
+    .from('question_sets')
+    .select('id')
+    .eq('id', setId)
+    .eq('company_id', profile.companyId)
+    .single()
+  if (!set) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { error: dbError } = await adminDb
     .from('questions')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', qId)
+    .eq('question_set_id', setId)
 
-  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
+  if (dbError) return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   return NextResponse.json({ ok: true })
 }

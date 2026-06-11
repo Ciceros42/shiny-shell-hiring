@@ -8,21 +8,23 @@ export async function sendPassEmail({
   to,
   name,
   scheduleUrl,
+  companyName = 'Shiny Shell Carwash',
 }: {
   to: string
   name: string
   scheduleUrl: string
+  companyName?: string
 }) {
   const resend = getResend()
   await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL ?? 'hiring@shiny-shell.com',
     to,
-    subject: `Next step: schedule your interview with Shiny Shell`,
+    subject: `Next step: schedule your interview with ${companyName}`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <h2 style="margin:0 0 8px">Hi ${name},</h2>
         <p style="color:#444;margin:0 0 24px">
-          Thank you for your interest in Shiny Shell Carwash! Please use the link below to
+          Thank you for your interest in ${companyName}! Please use the link below to
           schedule a follow-up interview with one of our managers.
         </p>
         <a href="${scheduleUrl}"
@@ -41,20 +43,22 @@ export async function sendPassEmail({
 export async function sendFailEmail({
   to,
   name,
+  companyName = 'Shiny Shell Carwash',
 }: {
   to: string
   name: string
+  companyName?: string
 }) {
   const resend = getResend()
   await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL ?? 'hiring@shiny-shell.com',
     to,
-    subject: `Your Shiny Shell Carwash application`,
+    subject: `Your ${companyName} application`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <h2 style="margin:0 0 8px">Hi ${name},</h2>
         <p style="color:#444;margin:0 0 24px">
-          Thank you for your application to Shiny Shell Carwash. We appreciate your time
+          Thank you for your application to ${companyName}. We appreciate your time
           and wish you all the best.
         </p>
       </div>
@@ -67,17 +71,19 @@ export async function sendScreenLinkEmail({
   name,
   screenUrl,
   locationName,
+  companyName = 'Shiny Shell',
 }: {
   to: string
   name: string
   screenUrl: string
   locationName: string
+  companyName?: string
 }) {
   const resend = getResend()
   await resend.emails.send({
     from: process.env.RESEND_FROM_EMAIL ?? 'hiring@shiny-shell.com',
     to,
-    subject: `Your Shiny Shell application — start your phone screen`,
+    subject: `Your ${companyName} application — start your phone screen`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
         <h2 style="margin:0 0 8px">Hi ${name},</h2>
@@ -91,7 +97,7 @@ export async function sendScreenLinkEmail({
           Start My Phone Screen →
         </a>
         <p style="color:#888;font-size:12px;margin-top:32px">
-          This link expires in 24 hours. If you didn't apply to Shiny Shell, ignore this email.
+          This link expires in 24 hours. If you didn't apply to ${companyName}, ignore this email.
         </p>
       </div>
     `,

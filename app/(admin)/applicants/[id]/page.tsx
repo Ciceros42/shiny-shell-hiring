@@ -1,8 +1,8 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
 import { adminDb } from '@/lib/supabase/admin'
 import SimulateCallButton from '@/components/admin/applicants/SimulateCallButton'
+import { getApplicationResponses } from '@/lib/db/application-forms'
 
 export const revalidate = 0
 
@@ -25,9 +25,8 @@ type Params = { id: string }
 
 export default async function ApplicantDetailPage({ params }: { params: Promise<Params> }) {
   const { id } = await params
-  const supabase = await createClient()
 
-  const { data: applicant } = await supabase
+  const { data: applicant } = await adminDb
     .from('applicants')
     .select('id, name, phone, email, sms_opted_out, created_at')
     .eq('id', id)
@@ -35,7 +34,7 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
 
   if (!applicant) notFound()
 
-  const { data: appRows } = await supabase
+  const { data: appRows } = await adminDb
     .from('applications')
     .select(`
       id, status, created_at, location_id,
@@ -62,6 +61,15 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
 
   const apps = (appRows ?? []) as unknown as AppDetail[]
   const appIds = apps.map((a) => a.id)
+
+  // Fetch application form responses for all applications
+  const formResponsesByApp: Record<string, Awaited<ReturnType<typeof getApplicationResponses>>> = {}
+  await Promise.all(
+    appIds.map(async (appId) => {
+      const responses = await getApplicationResponses(appId)
+      if (responses.length > 0) formResponsesByApp[appId] = responses
+    })
+  )
 
   // Fetch screen_results via adminDb — RLS requires manager_user_id linkage which may not be set
   type ScreenResultRow = {
@@ -167,6 +175,7 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
       <div className="space-y-4">
         {apps.map((app) => {
           const sr = screenResultsByApp[app.id] ?? null
+          const formResponses = formResponsesByApp[app.id] ?? []
           const interview = app.interviews?.find(
             (i) => i.status !== 'cancelled' && i.status !== 'rescheduled'
           ) ?? app.interviews?.[0] ?? null
@@ -187,6 +196,25 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
                   {STATUS_LABELS[app.status] ?? app.status}
                 </span>
               </div>
+
+              {/* Application form responses */}
+              {formResponses.length > 0 && (
+                <div className="px-5 py-4 border-b border-gray-100">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Application Responses</p>
+                  <div className="space-y-3">
+                    {formResponses.map((r, i) => (
+                      <div key={i}>
+                        <p className="text-xs font-medium text-gray-700">{r.questionText}</p>
+                        <div className="flex flex-wrap gap-1.5 mt-1">
+                          {r.selectedOptions.map((opt) => (
+                            <span key={opt} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded-full">{opt}</span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Simulate call button — only shown when no screen result yet */}
               {!sr && !['passed', 'failed', 'scheduled', 'interviewed', 'hired'].includes(app.status) && (

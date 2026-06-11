@@ -21,8 +21,6 @@ export interface Application {
   locationId: string
   jobId: string | null
   questionSetId: string
-  availability: Record<string, unknown>
-  hasTransportation: boolean
   status: ApplicationStatus
   source: string
   createdAt: string
@@ -34,8 +32,6 @@ export async function createApplication({
   locationId,
   jobId,
   questionSetId,
-  availability,
-  hasTransportation,
   status,
   source,
 }: {
@@ -44,8 +40,6 @@ export async function createApplication({
   locationId: string
   jobId: string | null
   questionSetId: string
-  availability: Record<string, unknown>
-  hasTransportation: boolean
   status: ApplicationStatus
   source: string
 }): Promise<Application> {
@@ -57,8 +51,6 @@ export async function createApplication({
       location_id: locationId,
       job_id: jobId,
       question_set_id: questionSetId,
-      availability,
-      has_transportation: hasTransportation,
       status,
       source,
     })
@@ -108,8 +100,6 @@ function mapApplication(row: Record<string, unknown>): Application {
     locationId: row.location_id as string,
     jobId: row.job_id as string | null,
     questionSetId: row.question_set_id as string,
-    availability: row.availability as Record<string, unknown>,
-    hasTransportation: row.has_transportation as boolean,
     status: row.status as ApplicationStatus,
     source: row.source as string,
     createdAt: row.created_at as string,

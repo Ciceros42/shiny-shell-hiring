@@ -41,7 +41,9 @@ export async function POST(_req: Request, { params }: Params) {
   // Load application + questions
   const appDetails = await getApplicationWithDetails(magicLink.applicationId)
 
-  const questions = appDetails.question_sets?.questions ?? []
+  const questions = (appDetails.question_sets?.questions ?? []).filter(
+    (q: { deleted_at?: string | null }) => !q.deleted_at
+  )
   const applicantName: string = appDetails.applicants?.name ?? 'there'
   const applicantPhone: string = appDetails.applicants?.phone
 

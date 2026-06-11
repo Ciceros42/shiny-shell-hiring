@@ -1,15 +1,20 @@
 import Link from 'next/link'
-import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/auth/require-admin'
+import { adminDb } from '@/lib/supabase/admin'
+import { redirect } from 'next/navigation'
 import NewSetButton from '@/components/admin/questions/NewSetButton'
 
 export const revalidate = 0
 
 export default async function QuestionsPage() {
-  const supabase = await createClient()
+  const { profile, error } = await requireAdmin()
+  if (error) redirect('/login')
+  const { companyId } = profile
 
-  const { data: sets } = await supabase
+  const { data: sets } = await adminDb
     .from('question_sets')
     .select('id, job_title, pass_threshold, is_active, created_at, questions(id)')
+    .eq('company_id', companyId)
     .order('created_at', { ascending: false })
 
   type SetRow = {

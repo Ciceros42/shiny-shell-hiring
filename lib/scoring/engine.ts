@@ -40,6 +40,7 @@ interface Question {
   rubric?: string | null
   fail_value?: string | null
   weight?: number | null
+  variants?: string[] | null
 }
 
 interface QuestionSet {
@@ -230,7 +231,7 @@ Transcript:
 ${transcript}
 
 Questions:
-${missing.map((q, i) => `[${i + 1}] ID: ${q.id}`).join('\n')}
+${missing.map((q, i) => `[${i + 1}] Question: "${Array.isArray(q.variants) && q.variants[0] ? q.variants[0] : 'Q' + (i+1)}" (ID: ${q.id})`).join('\n')}
 
 Respond as JSON only:
 {
@@ -254,13 +255,15 @@ Respond as JSON only:
   for (const extracted of parsed.answers ?? []) {
     if (!extracted.answerText) continue
 
-    // Anti-hallucination guard: answer must be > 10 chars AND a 3-word trigram must appear in transcript
-    if (extracted.answerText.length <= 10) continue
+    // Anti-hallucination guard: keyword overlap check (short answers like "Yes" are low risk — allowed through below)
+    if (extracted.answerText.trim().length === 0) continue
 
-    const words = extracted.answerText.toLowerCase().split(/\s+/)
-    const trigrams = words.slice(0, -2).map((w, i) => `${w} ${words[i + 1]} ${words[i + 2]}`)
-    const appearsInTranscript = trigrams.some((t) => transcript.toLowerCase().includes(t))
-    if (!appearsInTranscript) continue
+    const STOP_WORDS = new Set(['i','a','the','and','to','of','is','it','was','my','we','you','that','this','for','in','on','at','be','are','have','do','not','but','so','just','like','really','very','get','got'])
+    const keywords = extracted.answerText.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !STOP_WORDS.has(w)).slice(0, 8)
+    const transcriptLower = transcript.toLowerCase()
+    const matchCount = keywords.filter(kw => transcriptLower.includes(kw)).length
+    if (matchCount < 2 && keywords.length >= 2) continue  // likely hallucinated
+    // if fewer than 2 keywords to check, allow it (very short answer — low hallucination risk)
 
     await upsertScreenAnswer({
       screenCallId,

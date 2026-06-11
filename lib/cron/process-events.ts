@@ -10,9 +10,10 @@ import { getQuestionSetWithQuestions } from '@/lib/db/question-sets'
 import { saveScreenResult, getScreenResult, markScreenResultNotified } from '@/lib/db/screen-results'
 import { createMagicLink, markMagicLinkCompleted } from '@/lib/db/magic-links'
 import { batchScoreAndSummarize, runPassFailEngine, reconcileAnswersFromTranscript } from '@/lib/scoring/engine'
+import type { ScoredAnswer } from '@/lib/scoring/engine'
 import { sendSMS } from '@/lib/twilio/sms'
 import { SMS } from '@/lib/twilio/messages'
-import { getCompanyPipelineMode } from '@/lib/db/companies'
+import { getCompanyPipelineMode, getCompanyConfig } from '@/lib/db/companies'
 import { sendPassEmail, sendFailEmail } from '@/lib/email/send'
 import type { InboundEvent } from '@/lib/db/inbound-events'
 import type { ScreenResult } from '@/lib/db/screen-results'
@@ -131,14 +132,20 @@ async function processEndOfCall(event: InboundEvent): Promise<void> {
   if (existing?.notifiedAt) return // SMS already sent
   if (application.status === 'screen_complete' || application.status === 'passed' || application.status === 'failed') return
 
-  const applicant = await getApplicant(application.applicantId)
-  const location = await getLocationById(application.locationId)
+  // Snapshot pipeline mode early (finding 17) — single authoritative read for this run
+  const pipelineMode = await getCompanyPipelineMode(application.companyId)
+
+  // Parallelize independent lookups (finding 27) — needed by both re-dispatch and scoring paths
+  const [applicant, location, questionSet] = await Promise.all([
+    getApplicant(application.applicantId),
+    getLocationById(application.locationId),
+    getQuestionSetWithQuestions(application.questionSetId),
+  ])
 
   if (!applicant) throw new Error(`Applicant not found for application ${application.id}`)
 
   if (existing && !existing.notifiedAt) {
     // Scoring done but not yet dispatched — re-enter dispatch
-    const pipelineMode = await getCompanyPipelineMode(application.companyId)
     if (pipelineMode === 'suggestion') {
       await updateApplicationStatus(application.id, 'screen_complete')
     } else {
@@ -147,8 +154,6 @@ async function processEndOfCall(event: InboundEvent): Promise<void> {
     }
     return
   }
-
-  const questionSet = await getQuestionSetWithQuestions(application.questionSetId)
 
   // Fix 4: use Vapi event timestamp — never new Date() (cron may run 10 min after event)
   const callEndedAt = new Date(
@@ -171,39 +176,79 @@ async function processEndOfCall(event: InboundEvent): Promise<void> {
   })
   await markMagicLinkCompleted(screenCall.screenLinkId)
 
-  await reconcileAnswersFromTranscript(screenCall.id, questionSet.questions, transcript)
+  // Scoring idempotency (finding 12) — skip scoring if answers are already scored
+  const existingAnswers = await getScreenAnswers(screenCall.id)
+  const alreadyScored = existingAnswers.some((a) => a.score !== null)
 
-  const answers = await getScreenAnswers(screenCall.id)
-  const batchResult = await batchScoreAndSummarize(answers, questionSet.questions)
+  let screenResult: ScreenResult
+  try {
+    if (alreadyScored) {
+      // Re-use existing scored answers — scoring already completed, just re-save result
+      const rehydrated: ScoredAnswer[] = existingAnswers
+        .filter((a) => a.score !== null)
+        .map((a) => {
+          const q = questionSet.questions.find((q) => q.id === a.questionId)
+          return {
+            questionId: a.questionId,
+            answerText: a.answerText,
+            score: a.score!,
+            reasoning: a.aiReasoning ?? '',
+            questionType: (q?.type ?? 'scored') as ScoredAnswer['questionType'],
+            weight: q?.weight ?? 1,
+          }
+        })
+      const passFailResult = runPassFailEngine(
+        rehydrated,
+        { pass_threshold: questionSet.passThreshold, questions: questionSet.questions },
+        ''
+      )
+      screenResult = await saveScreenResult({
+        applicationId: application.id,
+        passed: passFailResult.passed,
+        failReason: passFailResult.failReason,
+        qualitativeSummary: passFailResult.qualitativeSummary,
+        managerBriefing: '',
+        scoredAnswers: rehydrated,
+        totalScore: passFailResult.totalScore,
+        thresholdAtTime: questionSet.passThreshold,
+      })
+    } else {
+      await reconcileAnswersFromTranscript(screenCall.id, questionSet.questions, transcript)
 
-  await saveScreenAnswerScores(batchResult.scoredAnswers)
-  await updateScreenCall(screenCall.id, { inflectionNotes: batchResult.inflectionNotes })
+      const answers = await getScreenAnswers(screenCall.id)
+      const batchResult = await batchScoreAndSummarize(answers, questionSet.questions)
 
-  const passFailResult = runPassFailEngine(
-    batchResult.scoredAnswers,
-    { pass_threshold: questionSet.passThreshold, questions: questionSet.questions },
-    batchResult.qualitativeSummary
-  )
+      await saveScreenAnswerScores(batchResult.scoredAnswers)
+      await updateScreenCall(screenCall.id, { inflectionNotes: batchResult.inflectionNotes })
 
-  const screenResult = await saveScreenResult({
-    applicationId: application.id,
-    passed: passFailResult.passed,
-    failReason: passFailResult.failReason,
-    qualitativeSummary: passFailResult.qualitativeSummary,
-    managerBriefing: batchResult.managerBriefing,
-    scoredAnswers: batchResult.scoredAnswers,
-    totalScore: passFailResult.totalScore,
-    thresholdAtTime: questionSet.passThreshold,
-  })
+      const passFailResult = runPassFailEngine(
+        batchResult.scoredAnswers,
+        { pass_threshold: questionSet.passThreshold, questions: questionSet.questions },
+        batchResult.qualitativeSummary
+      )
 
-  const pipelineMode = await getCompanyPipelineMode(application.companyId)
+      screenResult = await saveScreenResult({
+        applicationId: application.id,
+        passed: passFailResult.passed,
+        failReason: passFailResult.failReason,
+        qualitativeSummary: passFailResult.qualitativeSummary,
+        managerBriefing: batchResult.managerBriefing,
+        scoredAnswers: batchResult.scoredAnswers,
+        totalScore: passFailResult.totalScore,
+        thresholdAtTime: questionSet.passThreshold,
+      })
+    }
+  } catch (err) {
+    Sentry.captureException(err)
+    throw err
+  }
 
   if (pipelineMode === 'suggestion') {
     // Hold at screen_complete — admin reviews and manually advances or rejects
     await updateApplicationStatus(application.id, 'screen_complete')
   } else {
     // Assistant mode — act automatically
-    await updateApplicationStatus(application.id, passFailResult.passed ? 'passed' : 'failed')
+    await updateApplicationStatus(application.id, screenResult.passed ? 'passed' : 'failed')
     await sendPassFailNotification(screenResult, applicant, location)
   }
 }
@@ -214,36 +259,44 @@ async function sendPassFailNotification(
   location: Location
 ): Promise<void> {
   const useEmail = applicant.smsOptedOut && !!applicant.email
+  const { displayName: companyName } = await getCompanyConfig(location.companyId)
 
-  if (result.passed) {
-    const token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
-    const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
-    const earliestBookable = new Date(Date.now() + 30 * 60 * 1000)
+  try {
+    if (result.passed) {
+      const token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
+      const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
+      const earliestBookable = new Date(Date.now() + 30 * 60 * 1000)
 
-    await createMagicLink({
-      type: 'schedule',
-      applicationId: result.applicationId,
-      token,
-      expiresAt,
-      earliestBookable,
-    })
+      await createMagicLink({
+        type: 'schedule',
+        applicationId: result.applicationId,
+        token,
+        expiresAt,
+        earliestBookable,
+      })
 
-    const scheduleUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/schedule/${token}`
+      const scheduleUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/schedule/${token}`
 
-    if (useEmail) {
-      await sendPassEmail({ to: applicant.email!, name: applicant.name, scheduleUrl })
+      if (useEmail) {
+        await sendPassEmail({ to: applicant.email!, name: applicant.name, scheduleUrl, companyName })
+      } else {
+        await sendSMS(applicant.phone, SMS.pass(scheduleUrl, companyName), result.applicationId, 'pass', location.timezone, { bypassQuietHours: true })
+      }
+      await addToTalentPool(applicant.id, location.id, 'passed_no_schedule')
     } else {
-      await sendSMS(applicant.phone, SMS.pass(scheduleUrl), result.applicationId, 'pass', location.timezone, { bypassQuietHours: true })
+      if (useEmail) {
+        await sendFailEmail({ to: applicant.email!, name: applicant.name, companyName })
+      } else {
+        await sendSMS(applicant.phone, SMS.fail(companyName), result.applicationId, 'fail', location.timezone, { bypassQuietHours: true })
+      }
+      await addToTalentPool(applicant.id, location.id, 'failed_screen')
     }
-    await addToTalentPool(applicant.id, location.id, 'passed_no_schedule')
-  } else {
-    if (useEmail) {
-      await sendFailEmail({ to: applicant.email!, name: applicant.name })
-    } else {
-      await sendSMS(applicant.phone, SMS.fail(), result.applicationId, 'fail', location.timezone, { bypassQuietHours: true })
-    }
-    await addToTalentPool(applicant.id, location.id, 'failed_screen' as never)
+  } catch (err) {
+    // Notification failed — do NOT mark as notified so the event retries
+    Sentry.captureException(err)
+    throw err
   }
 
+  // Only mark notified after the send succeeds so a failure above causes a retry
   await markScreenResultNotified(result.applicationId)
 }

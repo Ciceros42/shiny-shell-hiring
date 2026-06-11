@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import type { AppListItem } from './ApplicantsTree'
 
@@ -45,7 +46,7 @@ interface Props {
   onClose: () => void
   onAdvance: (id: string) => void
   onReject: (id: string) => void
-  actionLoading: string | null
+  actionLoading: boolean
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -71,16 +72,20 @@ function ScoreBar({ score, max = 100 }: { score: number; max?: number }) {
 export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAdvance, onReject, actionLoading }: Props) {
   const [detail, setDetail] = useState<DetailData | null>(null)
   const [loading, setLoading] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
 
   useEffect(() => {
     if (!appId) { setDetail(null); return }
     setLoading(true)
     setDetail(null)
+    setFetchError(null)
     fetch(`/api/admin/applications/${appId}/detail`)
       .then((r) => r.json())
       .then((d) => setDetail(d))
+      .catch((err) => { setFetchError(String(err)); setLoading(false) })
       .finally(() => setLoading(false))
-  }, [appId])
+  }, [appId, retryCount])
 
   const open = !!appId
 
@@ -106,12 +111,22 @@ export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAd
             <p className="text-base font-semibold" style={{ color: 'var(--brand-primary)' }}>{app?.applicantName ?? '—'}</p>
             <p className="text-sm text-gray-400">{app?.applicantPhone}</p>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none mt-0.5"
-          >
-            ×
-          </button>
+          <div className="flex items-center gap-3">
+            {detail?.app.applicants?.id && (
+              <Link
+                href={`/applicants/${detail.app.applicants.id}`}
+                className="text-xs text-gray-400 hover:text-gray-600 underline underline-offset-2"
+              >
+                Full profile →
+              </Link>
+            )}
+            <button
+              onClick={onClose}
+              className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none mt-0.5"
+            >
+              ×
+            </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -119,6 +134,13 @@ export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAd
           {loading && (
             <div className="flex items-center justify-center h-32">
               <p className="text-sm text-gray-400">Loading…</p>
+            </div>
+          )}
+
+          {!loading && !detail && fetchError && (
+            <div className="p-6 text-center space-y-3">
+              <p className="text-sm text-red-500">Failed to load applicant details.</p>
+              <button onClick={() => setRetryCount(c => c + 1)} className="text-sm text-blue-600 underline">Try again</button>
             </div>
           )}
 
@@ -254,14 +276,14 @@ export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAd
           <div className="shrink-0 border-t border-gray-200 p-4 flex gap-3">
             <button
               onClick={() => onAdvance(app.id)}
-              disabled={actionLoading === app.id}
+              disabled={actionLoading}
               className="flex-1 rounded-md py-2.5 text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
             >
-              {actionLoading === app.id ? 'Processing…' : '✓ Advance to Interview'}
+              {actionLoading ? 'Processing…' : '✓ Advance to Interview'}
             </button>
             <button
               onClick={() => onReject(app.id)}
-              disabled={actionLoading === app.id}
+              disabled={actionLoading}
               className="flex-1 rounded-md py-2.5 text-sm font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
             >
               ✗ Reject

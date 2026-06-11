@@ -42,16 +42,14 @@ function buildSystemPrompt(config: VapiAssistantConfig): string {
 
   return `You are a phone screening assistant named ${config.assistantPersonaName} for ${config.companyName}. You are calling {{applicantName}} about their application for the ${config.jobTitle} position.
 
-Your opening line when the call connects: "${config.openingLine}"
-
-Your job is to ask the questions below in order. After the applicant answers each question, immediately call the recordAnswer function with the exact questionId shown and the applicant's answer before moving on.
+Your job is to ask the questions below in order. After the applicant answers each question, silently call the recordAnswer function — do NOT say anything like "let me record that", "one moment", or "please wait". Just call the function invisibly and immediately ask the next question.
 
 {{questionScript}}
 
 Guidelines:
 - Be ${toneDesc}
 - Keep the total call under ${config.maxCallDurationMinutes} minutes
-- After recording each answer, naturally transition to the next question
+- After recording each answer, naturally transition to the next question without any pause commentary
 - After all questions are answered, say: "${config.closingLine}"
 - End the call politely
 - Never read out the questionId values to the applicant — they are internal only
@@ -61,6 +59,7 @@ Guidelines:
 export function buildAssistantConfig(config: VapiAssistantConfig, serverUrl: string) {
   return {
     name: `${config.companyName} Screener`,
+    firstMessage: config.openingLine,
     model: {
       provider: 'openai',
       model: 'gpt-4o-mini',

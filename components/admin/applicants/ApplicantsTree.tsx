@@ -87,24 +87,40 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(
     Object.fromEntries(BUCKETS.filter((b) => b.defaultCollapsed).map((b) => [b.id, true]))
   )
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [actionLoading, setActionLoading] = useState<Set<string>>(new Set())
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
+
+  const isLoading = (id: string) => actionLoading.has(id)
 
   const selectedApp = apps.find((a) => a.id === selectedAppId) ?? null
 
   async function handleAdvance(appId: string) {
-    setActionLoading(appId)
-    setApps((prev) => prev.map((a) => a.id === appId ? { ...a, status: 'passed' } : a))
-    if (selectedAppId === appId) setSelectedAppId(null)
-    await fetch(`/api/admin/applications/${appId}/advance`, { method: 'POST' })
-    setActionLoading(null)
+    setActionError(null)
+    setActionLoading(prev => new Set(prev).add(appId))
+    const res = await fetch(`/api/admin/applications/${appId}/advance`, { method: 'POST' })
+    if (res.ok) {
+      setApps((prev) => prev.map((a) => a.id === appId ? { ...a, status: 'passed' } : a))
+      if (selectedAppId === appId) setSelectedAppId(null)
+    } else {
+      setActionError('Failed to advance applicant. Please try again.')
+    }
+    setActionLoading(prev => { const s = new Set(prev); s.delete(appId); return s })
   }
 
   async function handleReject(appId: string) {
-    setActionLoading(appId)
-    setApps((prev) => prev.map((a) => a.id === appId ? { ...a, status: 'rejected' } : a))
-    if (selectedAppId === appId) setSelectedAppId(null)
-    await fetch(`/api/admin/applications/${appId}/reject`, { method: 'POST' })
-    setActionLoading(null)
+    setActionError(null)
+    const name = apps.find(a => a.id === appId)?.applicantName ?? 'this applicant'
+    if (!window.confirm('Reject ' + name + '? This cannot be undone.')) return
+    setActionLoading(prev => new Set(prev).add(appId))
+    const res = await fetch(`/api/admin/applications/${appId}/reject`, { method: 'POST' })
+    if (res.ok) {
+      setApps((prev) => prev.map((a) => a.id === appId ? { ...a, status: 'rejected' } : a))
+      if (selectedAppId === appId) setSelectedAppId(null)
+    } else {
+      setActionError('Failed to reject applicant. Please try again.')
+    }
+    setActionLoading(prev => { const s = new Set(prev); s.delete(appId); return s })
   }
 
   function toggleBucket(bucketId: string) {
@@ -113,14 +129,30 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
 
   const visibleBuckets = pipelineMode === 'suggestion' ? BUCKETS : BUCKETS.filter((b) => b.id !== 'needs_decision')
 
+  const filteredApps = search.trim()
+    ? apps.filter(a => a.applicantName.toLowerCase().includes(search.toLowerCase()) || a.applicantPhone.includes(search))
+    : apps
+
   return (
     <div className="flex h-full">
       {/* Left: tree list */}
       <div className={`flex-1 overflow-auto transition-all duration-200 ${selectedAppId ? 'pr-0' : ''}`}>
+        {actionError && (
+          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600">
+            {actionError}
+          </div>
+        )}
+        <input
+          type="text"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search by name or phone…"
+          className="w-full mb-3 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-gray-400"
+        />
         <div className="space-y-3">
           {visibleBuckets.map((bucket) => {
-            const bucketApps = apps.filter((a) => bucket.statuses.includes(a.status))
-            if (bucketApps.length === 0) return null
+            const bucketApps = filteredApps.filter((a) => bucket.statuses.includes(a.status))
+            if (bucket.id === 'not_proceeding' && bucketApps.length === 0) return null
             const isCollapsed = collapsed[bucket.id] ?? false
 
             return (
@@ -159,6 +191,11 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50">
+                        {bucketApps.length === 0 && (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-6 text-center text-xs text-gray-400 italic">No candidates</td>
+                          </tr>
+                        )}
                         {bucketApps.map((app) => (
                           <tr
                             key={app.id}
@@ -215,14 +252,14 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
                                   <>
                                     <button
                                       onClick={() => handleAdvance(app.id)}
-                                      disabled={actionLoading === app.id}
+                                      disabled={isLoading(app.id)}
                                       className="rounded px-2.5 py-1 text-xs font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
                                     >
                                       ✓ Advance
                                     </button>
                                     <button
                                       onClick={() => handleReject(app.id)}
-                                      disabled={actionLoading === app.id}
+                                      disabled={isLoading(app.id)}
                                       className="rounded px-2.5 py-1 text-xs font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
                                     >
                                       ✗ Reject
@@ -263,7 +300,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
         onClose={() => setSelectedAppId(null)}
         onAdvance={handleAdvance}
         onReject={handleReject}
-        actionLoading={actionLoading}
+        actionLoading={isLoading(selectedApp?.id ?? '')}
       />
     </div>
   )

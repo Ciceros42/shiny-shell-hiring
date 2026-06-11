@@ -2,14 +2,16 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { AvailabilityPicker } from './AvailabilityPicker'
+import type { AppFormQuestion } from '@/lib/db/application-forms'
 
 interface Props {
+  companySlug: string
   locationSlug: string
   jobSlug: string
+  formQuestions?: AppFormQuestion[]
 }
 
-export function ApplicationForm({ locationSlug, jobSlug }: Props) {
+export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuestions = [] }: Props) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -18,19 +20,30 @@ export function ApplicationForm({ locationSlug, jobSlug }: Props) {
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [preferEmail, setPreferEmail] = useState(false)
-  const [hasTransportation, setHasTransportation] = useState<boolean | null>(null)
-  const [availability, setAvailability] = useState({ days: [] as string[], shifts: [] as string[] })
   const [website, setWebsite] = useState('') // honeypot
+  // questionId -> selected option texts
+  const [responses, setResponses] = useState<Record<string, string[]>>({})
 
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+
+  function toggleOption(questionId: string, optionText: string, type: 'single' | 'multi') {
+    setResponses((prev) => {
+      if (type === 'single') return { ...prev, [questionId]: [optionText] }
+      const current = prev[questionId] ?? []
+      const next = current.includes(optionText) ? current.filter((o) => o !== optionText) : [...current, optionText]
+      return { ...prev, [questionId]: next }
+    })
+  }
 
   function validate() {
     const errs: Record<string, string> = {}
     if (!name.trim()) errs.name = 'Name is required'
     if (!phone.trim()) errs.phone = 'Phone number is required'
-    if (hasTransportation === null) errs.transportation = 'Please answer the transportation question'
-    if (availability.days.length === 0) errs.days = 'Please select at least one day'
-    if (availability.shifts.length === 0) errs.shifts = 'Please select at least one shift'
+    for (const q of formQuestions) {
+      if (q.isRequired && (!responses[q.id] || responses[q.id].length === 0)) {
+        errs[`q_${q.id}`] = 'This question is required'
+      }
+    }
     return errs
   }
 
@@ -52,11 +65,11 @@ export function ApplicationForm({ locationSlug, jobSlug }: Props) {
           phone: phone.trim(),
           email: email.trim() || undefined,
           preferEmail: email.trim() ? preferEmail : undefined,
+          companySlug,
           locationSlug,
           jobSlug,
-          availability,
-          hasTransportation: hasTransportation!,
           website,
+          responses: Object.keys(responses).length > 0 ? responses : undefined,
         }),
       })
 
@@ -75,7 +88,7 @@ export function ApplicationForm({ locationSlug, jobSlug }: Props) {
 
       const params = new URLSearchParams({ appId: data.applicationId })
       if (data.email) params.set('email', data.email)
-      router.push(`/apply/${locationSlug}/${jobSlug}/submitted?${params.toString()}`)
+      router.push(`/apply/${companySlug}/${locationSlug}/${jobSlug}/submitted?${params.toString()}`)
     } catch {
       setError('Network error. Please check your connection and try again.')
     } finally {
@@ -172,42 +185,50 @@ export function ApplicationForm({ locationSlug, jobSlug }: Props) {
         </div>
       )}
 
-      <div>
-        <p className="mb-2 text-sm font-medium text-gray-700">
-          Do you have reliable transportation? *
-        </p>
-        <div className="flex gap-4">
-          {[
-            { value: true, label: 'Yes' },
-            { value: false, label: 'No' },
-          ].map(({ value, label }) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => setHasTransportation(value)}
-              className={`flex-1 rounded-lg border-2 py-3 text-sm font-medium transition-colors ${
-                hasTransportation === value
-                  ? 'border-blue-600 bg-blue-50 text-blue-700'
-                  : 'border-gray-200 text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        {fieldErrors.transportation && (
-          <p className="mt-1 text-sm text-red-600">{fieldErrors.transportation}</p>
-        )}
-      </div>
-
-      <div>
-        <p className="mb-3 text-sm font-medium text-gray-700">Availability *</p>
-        <AvailabilityPicker
-          value={availability}
-          onChange={setAvailability}
-          error={fieldErrors.days || fieldErrors.shifts}
-        />
-      </div>
+      {/* Custom application form questions */}
+      {formQuestions.map((q) => {
+        const selected = responses[q.id] ?? []
+        return (
+          <div key={q.id}>
+            <p className="mb-2 text-sm font-medium text-gray-700">
+              {q.questionText} {q.isRequired && <span className="text-gray-400">*</span>}
+            </p>
+            <div className={q.questionType === 'single' ? 'flex gap-3 flex-wrap' : 'space-y-2'}>
+              {q.options.map((opt) => {
+                const isSelected = selected.includes(opt.text)
+                if (q.questionType === 'single') {
+                  return (
+                    <button
+                      key={opt.text}
+                      type="button"
+                      onClick={() => toggleOption(q.id, opt.text, 'single')}
+                      className={`flex-1 rounded-lg border-2 py-3 px-4 text-sm font-medium transition-colors ${
+                        isSelected ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      {opt.text}
+                    </button>
+                  )
+                }
+                return (
+                  <label key={opt.text} className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleOption(q.id, opt.text, 'multi')}
+                      className="rounded border-gray-300 text-blue-600"
+                    />
+                    <span className="text-sm text-gray-700">{opt.text}</span>
+                  </label>
+                )
+              })}
+            </div>
+            {fieldErrors[`q_${q.id}`] && (
+              <p className="mt-1 text-sm text-red-600">{fieldErrors[`q_${q.id}`]}</p>
+            )}
+          </div>
+        )
+      })}
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

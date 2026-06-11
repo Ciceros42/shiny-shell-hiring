@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { adminDb } from '@/lib/supabase/admin'
 import HireButton from '@/components/admin/interview/HireButton'
 
 export const revalidate = 0
@@ -9,13 +9,11 @@ type Params = { id: string }
 
 export default async function InterviewPage({ params }: { params: Promise<Params> }) {
   const { id } = await params
-  const supabase = await createClient()
-
   // Interview + slot + application + applicant + location + screen result
-  const { data: interview } = await supabase
+  const { data: interview } = await adminDb
     .from('interviews')
     .select(`
-      id, status, manager_rating, created_at,
+      id, status, manager_rating, meet_link, created_at,
       interview_slots(start_time, end_time),
       applications(
         id, status, question_set_id,
@@ -62,7 +60,7 @@ export default async function InterviewPage({ params }: { params: Promise<Params
 
   // Fetch completed screen call for this application
   const { data: screenCallRow } = app
-    ? await supabase
+    ? await adminDb
         .from('screen_calls')
         .select('id, transcript, inflection_notes, started_at, ended_at, cost_usd')
         .eq('application_id', app.id)
@@ -83,7 +81,7 @@ export default async function InterviewPage({ params }: { params: Promise<Params
   }
 
   const { data: answerRows } = screenCallRow
-    ? await supabase
+    ? await adminDb
         .from('screen_answers')
         .select('id, answer_text, score, ai_reasoning, order_index, questions(variants, type, rubric, weight)')
         .eq('screen_call_id', screenCallRow.id)
@@ -127,6 +125,17 @@ export default async function InterviewPage({ params }: { params: Promise<Params
           <div className="text-right space-y-1">
             {slotStart && (
               <p className="text-sm font-medium text-gray-900">{slotStart}</p>
+            )}
+            {interview.meet_link && (
+              <a
+                href={interview.meet_link as string}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                Join Meet
+              </a>
             )}
             <InterviewStatusBadge status={interview.status} />
             {interview.manager_rating && (

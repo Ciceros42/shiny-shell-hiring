@@ -4,8 +4,10 @@ import { sendSMS } from '@/lib/twilio/sms'
 import { SMS } from '@/lib/twilio/messages'
 import { addToTalentPool } from '@/lib/db/applicants'
 import { formatInterviewDateTime } from '@/lib/scheduling/slots'
+import { getCompanyConfig } from '@/lib/db/companies'
 
-type AppJoin = { applicants: { phone: string } | null; locations: { timezone: string } | null }
+type CompanyJoin = { name: string; settings: unknown } | null
+type AppJoin = { applicants: { phone: string } | null; locations: { timezone: string; company_id: string } | null }
 type ExpiredJoin = { applicant_id: string; location_id: string }
 
 // Feature F: alert manager when < 3 slots in next 7 days (rate-limited to once/24h)
@@ -60,7 +62,7 @@ async function sendScreenLinkReminders(): Promise<void> {
 
   const { data: links4h } = await adminDb
     .from('magic_links')
-    .select('id, token, application_id, applications(applicants(phone), locations(timezone))')
+    .select('id, token, application_id, applications(company_id, applicants(phone), locations(timezone))')
     .eq('type', 'screen')
     .eq('reminder_4h_sent', false)
     .is('clicked_at', null)
@@ -70,12 +72,14 @@ async function sendScreenLinkReminders(): Promise<void> {
 
   for (const link of links4h ?? []) {
     try {
-      const app = link.applications as unknown as AppJoin
+      const app = link.applications as unknown as (AppJoin & { company_id?: string })
       const phone = app?.applicants?.phone
       const timezone = app?.locations?.timezone ?? 'America/Denver'
       if (!phone) continue
       const screenUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/screen/${link.token}`
-      await sendSMS(phone, SMS.screenReminder(screenUrl), link.application_id, 'screen_reminder_4h', timezone)
+      const companyId = (app as unknown as { company_id?: string })?.company_id
+      const { displayName: companyName } = companyId ? await getCompanyConfig(companyId) : { displayName: 'Shiny Shell' }
+      await sendSMS(phone, SMS.screenReminder(screenUrl, companyName), link.application_id, 'screen_reminder_4h', timezone)
       await adminDb.from('magic_links').update({ reminder_4h_sent: true }).eq('id', link.id)
     } catch (err) {
       Sentry.captureException(err, { extra: { magicLinkId: link.id } })
@@ -84,7 +88,7 @@ async function sendScreenLinkReminders(): Promise<void> {
 
   const { data: links20h } = await adminDb
     .from('magic_links')
-    .select('id, token, application_id, applications(applicants(phone), locations(timezone))')
+    .select('id, token, application_id, applications(company_id, applicants(phone), locations(timezone))')
     .eq('type', 'screen')
     .eq('reminder_20h_sent', false)
     .is('clicked_at', null)
@@ -94,12 +98,14 @@ async function sendScreenLinkReminders(): Promise<void> {
 
   for (const link of links20h ?? []) {
     try {
-      const app = link.applications as unknown as AppJoin
+      const app = link.applications as unknown as (AppJoin & { company_id?: string })
       const phone = app?.applicants?.phone
       const timezone = app?.locations?.timezone ?? 'America/Denver'
       if (!phone) continue
       const screenUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/screen/${link.token}`
-      await sendSMS(phone, SMS.screenReminder(screenUrl), link.application_id, 'screen_reminder_20h', timezone)
+      const companyId20 = (app as unknown as { company_id?: string })?.company_id
+      const { displayName: companyName20 } = companyId20 ? await getCompanyConfig(companyId20) : { displayName: 'Shiny Shell' }
+      await sendSMS(phone, SMS.screenReminder(screenUrl, companyName20), link.application_id, 'screen_reminder_20h', timezone)
       await adminDb.from('magic_links').update({ reminder_20h_sent: true }).eq('id', link.id)
     } catch (err) {
       Sentry.captureException(err, { extra: { magicLinkId: link.id } })
@@ -135,13 +141,43 @@ async function sendInterviewReminders(): Promise<void> {
   type SlotJoin = { start_time: string; locations: { name: string; timezone: string } | null }
   type AppPhone = { applicants: { phone: string } | null }
 
+  // 5-minute reminder with Meet link
+  const fiveMinFromNow = new Date(now.getTime() + 5 * 60 * 1000)
+  const tenMinFromNow = new Date(now.getTime() + 10 * 60 * 1000)
+
+  const { data: imminent5 } = await adminDb
+    .from('interviews')
+    .select('id, application_id, meet_link, reminder_5min_sent, interview_slots(start_time, locations(timezone)), applications(company_id, applicants(phone))')
+    .eq('status', 'scheduled')
+    .eq('reminder_5min_sent', false)
+    .gte('interview_slots.start_time', fiveMinFromNow.toISOString())
+    .lte('interview_slots.start_time', tenMinFromNow.toISOString())
+    .limit(50)
+
+  for (const interview of imminent5 ?? []) {
+    try {
+      const slot = interview.interview_slots as unknown as SlotJoin
+      const appData = interview.applications as unknown as (AppPhone & { company_id?: string })
+      const phone = appData?.applicants?.phone
+      const meetLink = interview.meet_link as string | null
+      if (!phone || !slot || !meetLink) continue
+      const timezone = slot.locations?.timezone ?? 'America/Denver'
+      const cid5 = appData?.company_id
+      const { displayName: cn5 } = cid5 ? await getCompanyConfig(cid5) : { displayName: 'Shiny Shell' }
+      await sendSMS(phone, SMS.interviewMeetLink(meetLink, cn5), interview.application_id, 'interview_meet_link', timezone, { bypassQuietHours: true })
+      await adminDb.from('interviews').update({ reminder_5min_sent: true }).eq('id', interview.id)
+    } catch (err) {
+      Sentry.captureException(err, { extra: { interviewId: interview.id } })
+    }
+  }
+
   // Day-before reminder
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000)
   const tomorrowEnd = new Date(now.getTime() + 25 * 60 * 60 * 1000)
 
   const { data: upcoming } = await adminDb
     .from('interviews')
-    .select('id, application_id, reminder_day_before_sent, interview_slots(start_time, locations(name, timezone)), applications(applicants(phone))')
+    .select('id, application_id, reminder_day_before_sent, interview_slots(start_time, locations(name, timezone)), applications(company_id, applicants(phone))')
     .eq('status', 'scheduled')
     .eq('reminder_day_before_sent', false)
     .gte('interview_slots.start_time', tomorrow.toISOString())
@@ -151,11 +187,14 @@ async function sendInterviewReminders(): Promise<void> {
   for (const interview of upcoming ?? []) {
     try {
       const slot = interview.interview_slots as unknown as SlotJoin
-      const phone = (interview.applications as unknown as AppPhone)?.applicants?.phone
+      const appData2 = interview.applications as unknown as (AppPhone & { company_id?: string })
+      const phone = appData2?.applicants?.phone
       if (!phone || !slot) continue
       const timezone = slot.locations?.timezone ?? 'America/Denver'
       const dateStr = formatInterviewDateTime(slot.start_time, timezone)
-      await sendSMS(phone, SMS.interviewReminder(dateStr), interview.application_id, 'interview_reminder_day', timezone)
+      const cid2 = appData2?.company_id
+      const { displayName: cn2 } = cid2 ? await getCompanyConfig(cid2) : { displayName: 'Shiny Shell' }
+      await sendSMS(phone, SMS.interviewReminder(dateStr, cn2), interview.application_id, 'interview_reminder_day', timezone)
       await adminDb.from('interviews').update({ reminder_day_before_sent: true }).eq('id', interview.id)
     } catch (err) {
       Sentry.captureException(err, { extra: { interviewId: interview.id } })
@@ -168,7 +207,7 @@ async function sendInterviewReminders(): Promise<void> {
 
   const { data: imminent } = await adminDb
     .from('interviews')
-    .select('id, application_id, interview_slots(start_time, locations(timezone)), applications(applicants(phone))')
+    .select('id, application_id, interview_slots(start_time, locations(timezone)), applications(company_id, applicants(phone))')
     .eq('status', 'scheduled')
     .eq('reminder_1h_before_sent', false)
     .gte('interview_slots.start_time', oneHourFromNow.toISOString())
@@ -178,13 +217,16 @@ async function sendInterviewReminders(): Promise<void> {
   for (const interview of imminent ?? []) {
     try {
       const slot = interview.interview_slots as unknown as SlotJoin
-      const phone = (interview.applications as unknown as AppPhone)?.applicants?.phone
+      const appData3 = interview.applications as unknown as (AppPhone & { company_id?: string })
+      const phone = appData3?.applicants?.phone
       if (!phone || !slot) continue
       const timezone = slot.locations?.timezone ?? 'America/Denver'
       const timeStr = new Intl.DateTimeFormat('en-US', {
         hour: 'numeric', minute: '2-digit', hour12: true, timeZone: timezone,
       }).format(new Date(slot.start_time))
-      await sendSMS(phone, SMS.interviewReminderSameDay(timeStr), interview.application_id, 'interview_reminder_1h', timezone)
+      const cid3 = appData3?.company_id
+      const { displayName: cn3 } = cid3 ? await getCompanyConfig(cid3) : { displayName: 'Shiny Shell' }
+      await sendSMS(phone, SMS.interviewReminderSameDay(timeStr, cn3), interview.application_id, 'interview_reminder_1h', timezone)
       await adminDb.from('interviews').update({ reminder_1h_before_sent: true }).eq('id', interview.id)
     } catch (err) {
       Sentry.captureException(err, { extra: { interviewId: interview.id } })

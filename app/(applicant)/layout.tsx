@@ -1,20 +1,33 @@
-import { getCompanyTheme, getThemeByToken } from '@/lib/db/companies'
+import { getCompanyTheme, getCompanyThemeBySlug, getThemeByToken } from '@/lib/db/companies'
 import { getLocationBySlug } from '@/lib/db/locations'
 import { DEFAULT_THEME, themeToCSS, type CompanyTheme } from '@/lib/types/theme'
 
 interface Props {
   children: React.ReactNode
-  params: Promise<{ locationSlug?: string; token?: string }>
+  params: Promise<{ locationSlug?: string; companySlug?: string; token?: string }>
 }
 
 export default async function ApplicantLayout({ children, params }: Props) {
-  const { locationSlug, token } = await params
+  const { locationSlug, companySlug, token } = await params
 
   let theme: CompanyTheme = DEFAULT_THEME
   try {
-    if (locationSlug) {
-      const location = await getLocationBySlug(locationSlug)
+    if (companySlug && locationSlug) {
+      // 3-segment route: /apply/companySlug/locationSlug/jobSlug
+      const location = await getLocationBySlug(locationSlug, companySlug)
       theme = await getCompanyTheme(location.companyId)
+    } else if (companySlug) {
+      // 2-segment route (landing page): /apply/companySlug/locationSlug
+      // companySlug param is present from [companySlug] folder
+      theme = await getCompanyThemeBySlug(companySlug)
+    } else if (locationSlug) {
+      // Old single-segment: /apply/locationSlug — try as location slug first, fallback to company slug
+      try {
+        const location = await getLocationBySlug(locationSlug)
+        theme = await getCompanyTheme(location.companyId)
+      } catch {
+        theme = await getCompanyThemeBySlug(locationSlug)
+      }
     } else if (token) {
       theme = await getThemeByToken(token)
     }

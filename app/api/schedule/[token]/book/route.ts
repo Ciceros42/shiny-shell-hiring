@@ -9,6 +9,7 @@ import { getInterviewById, updateInterviewGoogleEventId } from '@/lib/db/intervi
 import { getScreenResult } from '@/lib/db/screen-results'
 import { adminDb } from '@/lib/supabase/admin'
 import { createInterviewEvent } from '@/lib/google/calendar'
+import { getCompanyConfig } from '@/lib/db/companies'
 import { sendSMS } from '@/lib/twilio/sms'
 import { SMS } from '@/lib/twilio/messages'
 import { formatInterviewDateTime } from '@/lib/scheduling/slots'
@@ -77,6 +78,7 @@ export async function POST(req: Request, { params }: Params) {
   const application = await getApplicationById(magicLink.applicationId)
   const applicant = await getApplicant(application.applicantId)
   const location = await getLocationById(application.locationId)
+  const { displayName: companyName } = await getCompanyConfig(application.companyId)
 
   // Step 4: remove from talent pool (was tagged passed_no_schedule)
   if (applicant) {
@@ -90,12 +92,12 @@ export async function POST(req: Request, { params }: Params) {
   if (interview) {
     const { data: slotRow } = await adminDb
       .from('interview_slots')
-      .select('start_time, end_time')
+      .select('start_time, end_time, manager_user_id')
       .eq('id', slotId)
       .single()
 
     try {
-      const { googleEventId } = await createInterviewEvent({
+      const { googleEventId, meetLink } = await createInterviewEvent({
         interviewId: interview.id,
         applicantName: applicant?.name ?? 'Applicant',
         slotStartTime: slotRow?.start_time ?? '',
@@ -103,10 +105,11 @@ export async function POST(req: Request, { params }: Params) {
         locationName: location.name,
         locationAddress: null,
         managerBriefing: screenResult?.managerBriefing ?? null,
-        managerUserId: '',
+        managerUserId: slotRow?.manager_user_id ?? '',
+        companyName,
       })
       // Step 6
-      await updateInterviewGoogleEventId(interview.id, googleEventId)
+      await updateInterviewGoogleEventId(interview.id, googleEventId, meetLink)
     } catch (err) {
       Sentry.captureException(err, { extra: { context: 'createInterviewEvent', interviewId: interview.id } })
     }
@@ -116,7 +119,7 @@ export async function POST(req: Request, { params }: Params) {
       const dateStr = formatInterviewDateTime(slotRow.start_time, location.timezone)
       await sendSMS(
         applicant.phone,
-        SMS.interviewConfirmation(dateStr, location.name),
+        SMS.interviewConfirmation(dateStr, location.name, companyName),
         application.id,
         'interview_confirmation',
         location.timezone,

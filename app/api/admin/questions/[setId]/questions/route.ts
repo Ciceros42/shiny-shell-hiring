@@ -13,10 +13,19 @@ const QuestionSchema = z.object({
 })
 
 export async function POST(req: Request, { params }: { params: Promise<{ setId: string }> }) {
-  const { error } = await requireAdmin()
+  const { profile, error } = await requireAdmin()
   if (error) return error
 
   const { setId } = await params
+
+  const { data: set } = await adminDb
+    .from('question_sets')
+    .select('id')
+    .eq('id', setId)
+    .eq('company_id', profile.companyId)
+    .single()
+  if (!set) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
   const body = await req.json()
   const parsed = QuestionSchema.safeParse(body)
   if (!parsed.success) return NextResponse.json({ error: 'Invalid input', issues: parsed.error.issues }, { status: 400 })
@@ -35,6 +44,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ setId: 
     .select()
     .single()
 
-  if (dbError) return NextResponse.json({ error: dbError.message }, { status: 500 })
+  if (dbError) return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   return NextResponse.json(data)
 }

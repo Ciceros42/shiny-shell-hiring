@@ -7,6 +7,7 @@ export interface Interview {
   status: 'scheduled' | 'completed' | 'no_show' | 'cancelled' | 'rescheduled'
   managerRating: string | null
   googleEventId: string | null
+  meetLink: string | null
   createdAt: string
 }
 
@@ -52,23 +53,35 @@ export async function getScheduledInterviewByApplicationId(
 }
 
 export async function markInterviewRescheduled(interviewId: string): Promise<void> {
-  // Free the slot so another candidate can book it
   const { data: interview } = await adminDb
     .from('interviews')
-    .select('slot_id')
+    .select('slot_id, google_event_id, interview_slots(manager_user_id)')
     .eq('id', interviewId)
     .single()
 
   if (interview) {
+    // Free the slot so another candidate can book it
     await adminDb
       .from('interview_slots')
       .update({ is_available: true })
       .eq('id', interview.slot_id)
+
+    // Cancel the Google Calendar event — non-fatal if it fails
+    const googleEventId = interview.google_event_id as string | null
+    const slot = (interview.interview_slots as unknown) as { manager_user_id: string } | null
+    if (googleEventId && slot?.manager_user_id) {
+      try {
+        const { cancelEvent } = await import('@/lib/google-calendar/sync')
+        await cancelEvent(slot.manager_user_id, googleEventId)
+      } catch {
+        // calendar cancel failure does not block the reschedule
+      }
+    }
   }
 
   await adminDb
     .from('interviews')
-    .update({ status: 'rescheduled' })
+    .update({ status: 'rescheduled', google_event_id: null })
     .eq('id', interviewId)
 }
 
@@ -81,11 +94,12 @@ export async function updateInterviewManagerRating(
 
 export async function updateInterviewGoogleEventId(
   interviewId: string,
-  googleEventId: string
+  googleEventId: string,
+  meetLink?: string | null
 ): Promise<void> {
   await adminDb
     .from('interviews')
-    .update({ google_event_id: googleEventId })
+    .update({ google_event_id: googleEventId, ...(meetLink !== undefined && { meet_link: meetLink }) })
     .eq('id', interviewId)
 }
 
@@ -97,6 +111,7 @@ function mapInterview(row: Record<string, unknown>): Interview {
     status: row.status as Interview['status'],
     managerRating: (row.manager_rating as string | null) ?? null,
     googleEventId: (row.google_event_id as string | null) ?? null,
+    meetLink: (row.meet_link as string | null) ?? null,
     createdAt: row.created_at as string,
   }
 }

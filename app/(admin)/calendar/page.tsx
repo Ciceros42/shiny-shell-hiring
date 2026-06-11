@@ -1,31 +1,36 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/auth/require-admin'
+import { adminDb } from '@/lib/supabase/admin'
+import { redirect } from 'next/navigation'
 import CalendarManager from '@/components/admin/calendar/CalendarManager'
 
 export const revalidate = 0
 
 export default async function CalendarPage() {
-  const supabase = await createClient()
+  const { user, profile, error } = await requireAdmin()
+  if (error) redirect('/login')
+  const { companyId, locationId, role } = profile
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const { data: profile } = await supabase
+  const { data: calProfile } = await adminDb
     .from('profiles')
-    .select('role, company_id, location_id')
+    .select('calendar_token_encrypted, calendar_email')
     .eq('id', user.id)
     .single()
 
+  const calendarConnected = !!calProfile?.calendar_token_encrypted
+  const calendarEmail = (calProfile?.calendar_email as string | null) ?? null
+
   // Company admin: fetch all locations so they can choose
-  const { data: locations } = await supabase
+  const { data: locations } = await adminDb
     .from('locations')
     .select('id, name, timezone')
+    .eq('company_id', companyId)
     .order('name')
 
   const locationOptions = (locations ?? []) as { id: string; name: string; timezone: string }[]
 
   // Default to manager's own location or first available
   const defaultLocationId =
-    profile?.location_id ?? locationOptions[0]?.id ?? null
+    locationId ?? locationOptions[0]?.id ?? null
 
   if (!defaultLocationId) {
     return (
@@ -40,7 +45,9 @@ export default async function CalendarPage() {
   const now = new Date().toISOString()
   const end = new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString()
 
-  const { data: slots } = await supabase
+  // interview_slots has no company_id column; defaultLocationId is already
+  // derived from company-scoped locations, so location scoping is sufficient.
+  const { data: slots } = await adminDb
     .from('interview_slots')
     .select('id, start_time, end_time, is_available, manager_user_id')
     .eq('location_id', defaultLocationId)
@@ -74,12 +81,14 @@ export default async function CalendarPage() {
 
       <CalendarManager
         locationId={defaultLocationId}
-        locationOptions={profile?.role === 'company_admin' ? locationOptions : []}
+        locationOptions={role === 'company_admin' ? locationOptions : []}
         initialSlots={slotRows}
         timezone={defaultTimezone}
         hasShortage={hasShortage}
         availableNext7={availableNext7}
         managerId={user.id}
+        calendarConnected={calendarConnected}
+        calendarEmail={calendarEmail}
       />
     </div>
   )

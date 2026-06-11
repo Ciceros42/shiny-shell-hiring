@@ -1,42 +1,84 @@
-import { ApplicationForm } from '@/components/applicant/ApplicationForm'
+import Link from 'next/link'
+import { redirect } from 'next/navigation'
 import { getLocationBySlug } from '@/lib/db/locations'
-import { getJobBySlug } from '@/lib/db/jobs'
+import { getActiveJobsForLocation } from '@/lib/db/jobs'
 
 interface Props {
   params: Promise<{ locationSlug: string; jobSlug: string }>
 }
 
-export default async function ApplyJobPage({ params }: Props) {
-  const { locationSlug, jobSlug } = await params
+// This route handles /apply/[companySlug]/[locationSlug] — the location landing page.
+// The param names are inherited from the folder structure; we use locationSlug as companySlug
+// and jobSlug as the actual locationSlug.
+export default async function LocationLandingPage({ params }: Props) {
+  const { locationSlug: companySlug, jobSlug: locationSlug } = await params
 
-  let jobTitle = ''
-  let jobDescription: string | null = null
-
+  let location = null
   try {
-    const location = await getLocationBySlug(locationSlug)
-    const job = await getJobBySlug(location.companyId, jobSlug)
-    jobTitle = job.title
-    jobDescription = job.description
+    location = await getLocationBySlug(locationSlug, companySlug)
   } catch {
-    // Let the API handle errors gracefully
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-xl font-bold text-gray-900">Location not found</h2>
+        <p className="mt-2 text-gray-500">
+          Check the URL and try again.
+        </p>
+      </div>
+    )
+  }
+
+  if (!location.isHiring) {
+    return (
+      <div className="space-y-4 text-center py-8">
+        <p className="text-4xl">🚗</p>
+        <h2 className="text-xl font-bold text-gray-900">Not currently hiring</h2>
+        <p className="text-gray-600">
+          {location.name} is not accepting applications right now. Check back soon!
+        </p>
+      </div>
+    )
+  }
+
+  const jobs = await getActiveJobsForLocation(location.id, location.companyId)
+
+  if (jobs.length === 0) {
+    return (
+      <div className="space-y-4 text-center py-8">
+        <h2 className="text-xl font-bold text-gray-900">No open positions</h2>
+        <p className="text-gray-600">No positions are currently open. Check back soon!</p>
+      </div>
+    )
+  }
+
+  // Single job — skip the picker and go straight to the form
+  if (jobs.length === 1) {
+    redirect(`/apply/${companySlug}/${locationSlug}/${jobs[0].slug}`)
   }
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold text-gray-900">
-          {jobTitle ? `Apply — ${jobTitle}` : 'Apply for a position'}
-        </h2>
-        {jobDescription ? (
-          <p className="mt-1 text-gray-600">{jobDescription}</p>
-        ) : (
-          <p className="mt-1 text-gray-600">
-            Takes 2 minutes. We&apos;ll text you a link to complete a quick 3-minute phone screening.
-          </p>
-        )}
+        <h2 className="text-2xl font-bold text-gray-900">Open positions</h2>
+        <p className="mt-1 text-gray-600">Select a position to apply for.</p>
       </div>
 
-      <ApplicationForm locationSlug={locationSlug} jobSlug={jobSlug} />
+      <div className="space-y-3">
+        {jobs.map((job) => (
+          <Link
+            key={job.id}
+            href={`/apply/${companySlug}/${locationSlug}/${job.slug}`}
+            className="flex items-center justify-between rounded-lg border border-gray-200 p-5 hover:border-gray-400 hover:bg-gray-50 transition-colors"
+          >
+            <div>
+              <p className="font-semibold text-gray-900">{job.title}</p>
+              {job.description && (
+                <p className="mt-0.5 text-sm text-gray-500">{job.description}</p>
+              )}
+            </div>
+            <span className="text-gray-400 ml-4 text-lg">→</span>
+          </Link>
+        ))}
+      </div>
     </div>
   )
 }

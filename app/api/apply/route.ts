@@ -13,6 +13,9 @@ import { sendSMS } from '@/lib/twilio/sms'
 import { SMS } from '@/lib/twilio/messages'
 import { getTwilioClient as twilioClient } from '@/lib/twilio/client'
 import { sendScreenLinkEmail } from '@/lib/email/send'
+import { getApplicationFormForJob, saveApplicationResponses } from '@/lib/db/application-forms'
+import { getCompanyConfig } from '@/lib/db/companies'
+import { adminDb } from '@/lib/supabase/admin'
 
 export async function POST(req: Request) {
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
@@ -32,7 +35,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { name, phone, email, locationSlug, jobSlug, availability, hasTransportation, preferEmail, website } = parsed.data
+  const { name, phone, email, companySlug, locationSlug, jobSlug, preferEmail, website, responses } = parsed.data
 
   // Honeypot — silently accept to avoid tipping off bots
   if (website) return NextResponse.json({ status: 'ok' })
@@ -72,7 +75,7 @@ export async function POST(req: Request) {
 
   let location
   try {
-    location = await getLocationBySlug(locationSlug)
+    location = await getLocationBySlug(locationSlug, companySlug)
   } catch {
     return NextResponse.json({ error: 'Location not found' }, { status: 404 })
   }
@@ -97,6 +100,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'This position is not yet configured for applications' }, { status: 503 })
   }
 
+  const { displayName: companyName } = await getCompanyConfig(location.companyId)
   const smsOptedOut = !!(preferEmail && email)
   const applicant = await upsertApplicant({
     phone: normalizedPhone,
@@ -109,7 +113,7 @@ export async function POST(req: Request) {
     await addToTalentPool(applicant.id, location.id, 'future_opening')
     await sendSMS(
       normalizedPhone,
-      SMS.fullyStaffed(),
+      SMS.fullyStaffed(companyName),
       null,
       'fully_staffed',
       location.timezone,
@@ -124,11 +128,44 @@ export async function POST(req: Request) {
     locationId: location.id,
     jobId: job.id,
     questionSetId: job.questionSetId,
-    availability,
-    hasTransportation,
     status: 'applied',
     source: 'direct',
   })
+
+  // Save application form responses and check for hard-fail answers
+  if (responses && Object.keys(responses).length > 0) {
+    const appForm = await getApplicationFormForJob(job.id)
+    if (appForm) {
+      const responseEntries = Object.entries(responses).map(([questionId, selectedOptions]) => ({ questionId, selectedOptions }))
+      await saveApplicationResponses(application.id, responseEntries)
+
+      // Check hard-fail: single-choice questions where selected option has is_fail=true
+      let hardFailed = false
+      for (const question of appForm.questions) {
+        if (question.questionType !== 'single') continue
+        const selected = responses[question.id]?.[0]
+        if (!selected) continue
+        const opt = question.options.find((o) => o.text === selected)
+        if (opt?.is_fail) { hardFailed = true; break }
+      }
+
+      if (hardFailed) {
+        await updateApplicationStatus(application.id, 'rejected')
+        await addToTalentPool(applicant.id, location.id, 'failed_screen')
+        // Queue rejection SMS 24 hours later so the cause isn't obvious
+        const sendAfter = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        await adminDb.from('pending_sms').insert({
+          to_phone: normalizedPhone,
+          body: SMS.fail(companyName),
+          application_id: application.id,
+          message_type: 'rejection',
+          timezone: location.timezone,
+          send_after: sendAfter,
+        })
+        return NextResponse.json({ status: 'ok', applicationId: application.id, email: email || null, locationSlug, jobSlug })
+      }
+    }
+  }
 
   const token = crypto.getRandomValues(new Uint8Array(32))
   const tokenStr = Buffer.from(token).toString('base64url')
@@ -145,11 +182,11 @@ export async function POST(req: Request) {
   const screenUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/screen/${tokenStr}`
 
   if (smsOptedOut && email) {
-    await sendScreenLinkEmail({ to: email, name, screenUrl, locationName: location.name })
+    await sendScreenLinkEmail({ to: email, name, screenUrl, locationName: location.name, companyName })
   } else {
     await sendSMS(
       normalizedPhone,
-      SMS.screenLink(name, screenUrl, urgentShift),
+      SMS.screenLink(name, screenUrl, urgentShift, companyName),
       application.id,
       'screen_link',
       location.timezone,

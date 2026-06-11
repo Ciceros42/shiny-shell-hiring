@@ -32,12 +32,17 @@ export async function getLocationById(id: string): Promise<Location> {
   }
 }
 
-export async function getLocationBySlug(slug: string): Promise<Location> {
-  const { data, error } = await adminDb
+export async function getLocationBySlug(slug: string, companySlug?: string): Promise<Location> {
+  let query = adminDb
     .from('locations')
-    .select('id, company_id, name, slug, timezone, is_hiring, active_question_set_id, slot_shortage_sms_sent_at')
+    .select('id, company_id, name, slug, timezone, is_hiring, active_question_set_id, slot_shortage_sms_sent_at, companies!inner(slug)')
     .eq('slug', slug)
-    .single()
+
+  if (companySlug) {
+    query = query.eq('companies.slug', companySlug) as typeof query
+  }
+
+  const { data, error } = await query.single()
 
   if (error || !data) throw new Error(`Location not found: ${slug}`)
 
@@ -51,4 +56,29 @@ export async function getLocationBySlug(slug: string): Promise<Location> {
     activeQuestionSetId: data.active_question_set_id,
     slotShortageSmsAt: data.slot_shortage_sms_sent_at,
   }
+}
+
+export async function createLocation(companyId: string, name: string, timezone: string): Promise<string> {
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  const { data, error } = await adminDb
+    .from('locations')
+    .insert({ company_id: companyId, name, slug, timezone, is_hiring: false })
+    .select('id')
+    .single()
+  if (error || !data) throw new Error(error?.message ?? 'Failed to create location')
+  return data.id
+}
+
+export async function listLocations(companyId?: string): Promise<{ id: string; companyId: string; name: string; slug: string; timezone: string; isHiring: boolean }[]> {
+  let query = adminDb.from('locations').select('id, company_id, name, slug, timezone, is_hiring').order('name', { ascending: true })
+  if (companyId) query = query.eq('company_id', companyId)
+  const { data } = await query
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    companyId: row.company_id,
+    name: row.name,
+    slug: row.slug,
+    timezone: row.timezone,
+    isHiring: row.is_hiring,
+  }))
 }

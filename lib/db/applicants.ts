@@ -3,6 +3,7 @@ import { adminDb } from '@/lib/supabase/admin'
 export type TalentPoolTag =
   | 'future_opening'
   | 'passed_no_schedule'
+  | 'failed_screen'
   | 'didnt_engage'
   | 'reconsidered'
 

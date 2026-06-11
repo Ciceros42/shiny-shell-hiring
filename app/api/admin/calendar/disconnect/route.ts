@@ -8,7 +8,7 @@ export async function POST(_req: Request) {
 
   await adminDb
     .from('profiles')
-    .update({ calendar_token_encrypted: null, calendar_token_created_at: null })
+    .update({ calendar_token_encrypted: null, calendar_token_created_at: null, calendar_email: null })
     .eq('id', user!.id)
 
   return NextResponse.json({ ok: true })

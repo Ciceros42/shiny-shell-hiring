@@ -1,24 +1,17 @@
-import { createClient } from '@/lib/supabase/server'
+import { requireAdmin } from '@/lib/auth/require-admin'
 import { adminDb } from '@/lib/supabase/admin'
+import { redirect } from 'next/navigation'
 import { getCompanyPipelineMode } from '@/lib/db/companies'
 import ApplicantsTree, { type AppListItem } from '@/components/admin/applicants/ApplicantsTree'
 
 export const revalidate = 0
 
 export default async function ApplicantsPage() {
-  const supabase = await createClient()
+  const { profile, error } = await requireAdmin()
+  if (error) redirect('/login')
+  const { companyId, locationId, role } = profile
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return null
-
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role, company_id, location_id')
-    .eq('id', user.id)
-    .single()
-
-  const companyId = (profile as { company_id?: string } | null)?.company_id
-  const pipelineMode = companyId ? await getCompanyPipelineMode(companyId) : 'suggestion'
+  const pipelineMode = await getCompanyPipelineMode(companyId)
 
   // Fetch applications with related data via adminDb (bypasses RLS for joins)
   let query = adminDb
@@ -29,17 +22,16 @@ export default async function ApplicantsPage() {
       locations(id, name),
       jobs(id, title),
       screen_results(passed, total_score)
-    `)
+    `, { count: 'exact' })
     .order('created_at', { ascending: false })
     .limit(500)
 
-  if (profile?.role === 'location_manager' && profile.location_id) {
-    query = query.eq('location_id', profile.location_id)
-  } else if (companyId) {
-    query = query.eq('company_id', companyId)
+  query = query.eq('company_id', companyId)
+  if (role === 'location_manager' && locationId) {
+    query = query.eq('location_id', locationId)
   }
 
-  const { data: rows } = await query
+  const { data: rows, count } = await query
 
   type RawRow = {
     id: string
@@ -73,7 +65,13 @@ export default async function ApplicantsPage() {
     <div className="flex flex-col flex-1 min-h-0">
       <div className="px-8 py-6 border-b border-gray-200 shrink-0">
         <h1 className="text-2xl font-bold text-gray-900">Applicants</h1>
-        <p className="mt-0.5 text-sm text-gray-500">{apps.length} total</p>
+        {count !== null && count > apps.length ? (
+          <p className="mt-0.5 text-sm text-amber-600">
+            Showing {apps.length} of {count} applicants — use filters to narrow results
+          </p>
+        ) : (
+          <p className="mt-0.5 text-sm text-gray-500">{apps.length} applicants</p>
+        )}
       </div>
       <div className="flex-1 overflow-auto px-8 py-4">
         <ApplicantsTree apps={apps} pipelineMode={pipelineMode} />
