@@ -216,8 +216,8 @@ export default function VapiAssistantConfig({ initialConfig, assistantId: initia
         <button
           onClick={handleDeploy}
           disabled={state === 'deploying' || !config.assistantPersonaName || !config.companyName}
-          className="rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 transition-colors"
-          style={{ backgroundColor: 'var(--brand-primary)' }}
+          className="rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 transition-colors"
+          style={{ backgroundColor: 'var(--ui-accent)', color: 'var(--ui-accent-fg)' }}
         >
           {state === 'deploying'
             ? 'Deploying…'

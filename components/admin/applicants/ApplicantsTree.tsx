@@ -23,62 +23,60 @@ interface Props {
 
 const BUCKETS = [
   {
-    id: 'needs_decision', label: 'Needs Decision', statuses: ['screen_complete'],
-    urgent: true,
-    headerBg: 'bg-amber-50', headerBorder: 'border-l-4 border-amber-400',
-    headerText: 'text-amber-800', countBg: 'bg-amber-100 text-amber-700',
-    rowSelected: 'bg-amber-50',
+    id: 'needs_decision', label: 'Needs Decision', statuses: ['screen_complete'], urgent: true,
+    accentColor: '#F59E0B', accentBg: 'rgba(245,158,11,0.08)', badgeStyle: { backgroundColor: '#FEF3C7', color: '#92400E' },
   },
   {
     id: 'new', label: 'New Applications', statuses: ['applied'],
-    headerBg: 'bg-blue-50', headerBorder: 'border-l-4 border-blue-400',
-    headerText: 'text-blue-900', countBg: 'bg-blue-100 text-blue-700',
-    rowSelected: 'bg-blue-50',
+    accentColor: '#3B82F6', accentBg: 'rgba(59,130,246,0.06)', badgeStyle: { backgroundColor: '#DBEAFE', color: '#1E40AF' },
   },
   {
     id: 'in_progress', label: 'Screening In Progress', statuses: ['sms_sent', 'screen_link_clicked', 'screening'],
-    headerBg: 'bg-indigo-50', headerBorder: 'border-l-4 border-indigo-400',
-    headerText: 'text-indigo-900', countBg: 'bg-indigo-100 text-indigo-700',
-    rowSelected: 'bg-indigo-50',
+    accentColor: '#6366F1', accentBg: 'rgba(99,102,241,0.06)', badgeStyle: { backgroundColor: '#E0E7FF', color: '#3730A3' },
   },
   {
     id: 'passed', label: 'Passed — Awaiting Schedule', statuses: ['passed'],
-    headerBg: 'bg-green-50', headerBorder: 'border-l-4 border-green-400',
-    headerText: 'text-green-900', countBg: 'bg-green-100 text-green-700',
-    rowSelected: 'bg-green-50',
+    accentColor: '#10B981', accentBg: 'rgba(16,185,129,0.06)', badgeStyle: { backgroundColor: '#D1FAE5', color: '#065F46' },
   },
   {
     id: 'scheduled', label: 'Interview Scheduled', statuses: ['scheduled'],
-    headerBg: 'bg-teal-50', headerBorder: 'border-l-4 border-teal-400',
-    headerText: 'text-teal-900', countBg: 'bg-teal-100 text-teal-700',
-    rowSelected: 'bg-teal-50',
+    accentColor: '#14B8A6', accentBg: 'rgba(20,184,166,0.06)', badgeStyle: { backgroundColor: '#CCFBF1', color: '#134E4A' },
   },
   {
     id: 'interviewed', label: 'Interviewed', statuses: ['interviewed'],
-    headerBg: 'bg-purple-50', headerBorder: 'border-l-4 border-purple-400',
-    headerText: 'text-purple-900', countBg: 'bg-purple-100 text-purple-700',
-    rowSelected: 'bg-purple-50',
+    accentColor: '#8B5CF6', accentBg: 'rgba(139,92,246,0.06)', badgeStyle: { backgroundColor: '#EDE9FE', color: '#4C1D95' },
   },
   {
     id: 'hired', label: 'Hired', statuses: ['hired'],
-    headerBg: 'bg-emerald-50', headerBorder: 'border-l-4 border-emerald-500',
-    headerText: 'text-emerald-900', countBg: 'bg-emerald-100 text-emerald-700',
-    rowSelected: 'bg-emerald-50',
+    accentColor: '#059669', accentBg: 'rgba(5,150,105,0.06)', badgeStyle: { backgroundColor: '#A7F3D0', color: '#064E3B' },
   },
   {
     id: 'not_proceeding', label: 'Not Proceeding', statuses: ['failed', 'rejected', 'no_show'],
     defaultCollapsed: true,
-    headerBg: 'bg-gray-100', headerBorder: 'border-l-4 border-gray-300',
-    headerText: 'text-gray-500', countBg: 'bg-gray-200 text-gray-500',
-    rowSelected: 'bg-gray-100',
+    accentColor: '#9CA3AF', accentBg: 'transparent', badgeStyle: { backgroundColor: '#F3F4F6', color: '#6B7280' },
   },
 ]
 
 function timeAgo(dateStr: string): string {
   const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000)
   if (days === 0) return 'Today'
-  if (days === 1) return '1 day ago'
-  return `${days} days ago`
+  if (days === 1) return '1d ago'
+  return `${days}d ago`
+}
+
+function ScoreBadge({ score, passed }: { score: number; passed: boolean | null }) {
+  const color =
+    score >= 70 ? { bg: '#DCFCE7', text: '#166534' } :
+    score >= 50 ? { bg: '#FEF9C3', text: '#854D0E' } :
+                  { bg: '#FEE2E2', text: '#991B1B' }
+  return (
+    <span
+      className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold"
+      style={{ backgroundColor: color.bg, color: color.text }}
+    >
+      {score}
+    </span>
+  )
 }
 
 export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Props) {
@@ -92,7 +90,6 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
   const [search, setSearch] = useState('')
 
   const isLoading = (id: string) => actionLoading.has(id)
-
   const selectedApp = apps.find((a) => a.id === selectedAppId) ?? null
 
   async function handleAdvance(appId: string) {
@@ -127,28 +124,42 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
     setCollapsed((c) => ({ ...c, [bucketId]: !c[bucketId] }))
   }
 
-  const visibleBuckets = pipelineMode === 'suggestion' ? BUCKETS : BUCKETS.filter((b) => b.id !== 'needs_decision')
+  const visibleBuckets = pipelineMode === 'suggestion'
+    ? BUCKETS
+    : BUCKETS.filter((b) => b.id !== 'needs_decision')
 
   const filteredApps = search.trim()
-    ? apps.filter(a => a.applicantName.toLowerCase().includes(search.toLowerCase()) || a.applicantPhone.includes(search))
+    ? apps.filter(a =>
+        a.applicantName.toLowerCase().includes(search.toLowerCase()) ||
+        a.applicantPhone.includes(search)
+      )
     : apps
 
   return (
     <div className="flex h-full">
-      {/* Left: tree list */}
-      <div className={`flex-1 overflow-auto transition-all duration-200 ${selectedAppId ? 'pr-0' : ''}`}>
+      <div className="flex-1 overflow-auto min-w-0">
         {actionError && (
-          <div className="mb-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600">
+          <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-[13px] text-red-600">
             {actionError}
           </div>
         )}
-        <input
-          type="text"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search by name or phone…"
-          className="w-full mb-3 rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:border-gray-400"
-        />
+
+        {/* Search */}
+        <div className="mb-4">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name or phone…"
+            className="w-full rounded-xl border px-3.5 py-2.5 text-[13px] focus:outline-none transition-colors"
+            style={{
+              borderColor: 'var(--ui-border)',
+              backgroundColor: 'var(--ui-card-bg)',
+              color: 'var(--ui-text-primary)',
+            }}
+          />
+        </div>
+
         <div className="space-y-3">
           {visibleBuckets.map((bucket) => {
             const bucketApps = filteredApps.filter((a) => bucket.statuses.includes(a.status))
@@ -156,128 +167,163 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
             const isCollapsed = collapsed[bucket.id] ?? false
 
             return (
-              <div key={bucket.id} className="rounded-lg overflow-hidden border border-gray-200">
+              <div
+                key={bucket.id}
+                className="rounded-xl overflow-hidden"
+                style={{ border: '1px solid var(--ui-border)' }}
+              >
                 {/* Bucket header */}
                 <button
                   onClick={() => toggleBucket(bucket.id)}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors ${bucket.headerBg} ${bucket.headerBorder} hover:brightness-95`}
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left transition-colors"
+                  style={{
+                    backgroundColor: bucket.accentBg,
+                    borderLeft: `3px solid ${bucket.accentColor}`,
+                  }}
                 >
-                  <span className={`text-xs ${bucket.headerText}`}>{isCollapsed ? '▶' : '▼'}</span>
-                  <span className={`text-sm font-bold uppercase tracking-wide ${bucket.headerText}`}>
+                  <svg
+                    className="shrink-0 transition-transform"
+                    style={{
+                      transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                      color: bucket.accentColor,
+                    }}
+                    width="12" height="12" viewBox="0 0 12 12"
+                    fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                  >
+                    <path d="M2 4l4 4 4-4" />
+                  </svg>
+                  <span
+                    className="text-[12px] font-semibold uppercase tracking-[0.06em]"
+                    style={{ color: bucket.accentColor }}
+                  >
                     {bucket.label}
                   </span>
-                  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${bucket.countBg}`}>
+                  <span
+                    className="text-[11px] font-bold px-2 py-0.5 rounded-full"
+                    style={bucket.badgeStyle}
+                  >
                     {bucketApps.length}
                   </span>
                 </button>
 
-                {/* Applicant rows */}
+                {/* Rows */}
                 {!isCollapsed && (
-                  <div className="bg-white">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50 text-xs font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100">
-                          <th className="px-4 py-2 text-left">Candidate</th>
-                          <th className="px-4 py-2 text-left hidden md:table-cell">Position</th>
-                          <th className="px-4 py-2 text-left hidden lg:table-cell">Location</th>
-                          <th className="px-4 py-2 text-left hidden sm:table-cell">Applied</th>
-                          {(bucket.id === 'needs_decision' || bucket.id === 'passed' || bucket.id === 'not_proceeding') && (
-                            <th className="px-4 py-2 text-left">Score</th>
+                  <div style={{ backgroundColor: 'var(--ui-card-bg)' }}>
+                    {bucketApps.length === 0 && (
+                      <p className="px-5 py-5 text-center text-[12px] italic" style={{ color: 'var(--ui-text-muted)' }}>
+                        No candidates
+                      </p>
+                    )}
+                    {bucketApps.map((app) => (
+                      <div
+                        key={app.id}
+                        onClick={() => setSelectedAppId(app.id === selectedAppId ? null : app.id)}
+                        className="flex items-center gap-4 px-4 py-3 cursor-pointer transition-colors"
+                        style={{
+                          borderTop: '1px solid var(--ui-border)',
+                          backgroundColor: selectedAppId === app.id ? bucket.accentBg : undefined,
+                        }}
+                        onMouseEnter={(e) => {
+                          if (selectedAppId !== app.id)
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--ui-content-bg)'
+                        }}
+                        onMouseLeave={(e) => {
+                          if (selectedAppId !== app.id)
+                            (e.currentTarget as HTMLElement).style.backgroundColor = ''
+                        }}
+                      >
+                        {/* Candidate info */}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--ui-text-primary)' }}>
+                            {app.applicantName}
+                          </p>
+                          <p className="text-[11px] truncate" style={{ color: 'var(--ui-text-muted)' }}>
+                            {app.applicantPhone}
+                          </p>
+                        </div>
+
+                        {/* Job */}
+                        <div className="hidden md:block w-32 shrink-0">
+                          <p className="text-[12px] truncate" style={{ color: 'var(--ui-text-secondary)' }}>
+                            {app.jobTitle ?? '—'}
+                          </p>
+                        </div>
+
+                        {/* Score */}
+                        <div className="w-10 shrink-0 text-center">
+                          {app.score !== null ? (
+                            <ScoreBadge score={app.score} passed={app.aiPassed} />
+                          ) : (
+                            <span className="text-[11px]" style={{ color: 'var(--ui-text-muted)' }}>—</span>
                           )}
-                          {bucket.id === 'needs_decision' && pipelineMode === 'suggestion' && (
-                            <th className="px-4 py-2 text-left">AI Rec</th>
-                          )}
-                          <th className="px-4 py-2 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50">
-                        {bucketApps.length === 0 && (
-                          <tr>
-                            <td colSpan={6} className="px-4 py-6 text-center text-xs text-gray-400 italic">No candidates</td>
-                          </tr>
-                        )}
-                        {bucketApps.map((app) => (
-                          <tr
-                            key={app.id}
-                            onClick={() => setSelectedAppId(app.id === selectedAppId ? null : app.id)}
-                            className={`cursor-pointer transition-colors ${
-                              selectedAppId === app.id
-                                ? bucket.rowSelected
-                                : 'hover:bg-gray-50'
-                            }`}
-                          >
-                            <td className="px-4 py-3">
-                              <p className="font-medium text-gray-900">{app.applicantName}</p>
-                              <p className="text-xs text-gray-400">{app.applicantPhone}</p>
-                            </td>
-                            <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
-                              {app.jobTitle ?? '—'}
-                            </td>
-                            <td className="px-4 py-3 text-gray-500 hidden lg:table-cell">
-                              {app.locationName}
-                            </td>
-                            <td className="px-4 py-3 text-gray-400 text-xs hidden sm:table-cell">
-                              {timeAgo(app.createdAt)}
-                            </td>
-                            {(bucket.id === 'needs_decision' || bucket.id === 'passed' || bucket.id === 'not_proceeding') && (
-                              <td className="px-4 py-3">
-                                {app.score !== null ? (
-                                  <span className={`text-sm font-bold ${
-                                    app.aiPassed ? 'text-green-600' : 'text-red-500'
-                                  }`}>
-                                    {app.score}
-                                  </span>
-                                ) : <span className="text-gray-300">—</span>}
-                              </td>
-                            )}
-                            {bucket.id === 'needs_decision' && pipelineMode === 'suggestion' && (
-                              <td className="px-4 py-3">
-                                {app.aiPassed !== null && (() => {
-                                  const isReview = app.aiPassed && app.score !== null && app.score < 70
-                                  return (
-                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                                      isReview ? 'bg-amber-50 text-amber-700'
-                                      : app.aiPassed ? 'bg-green-50 text-green-700'
-                                      : 'bg-red-50 text-red-600'
-                                    }`}>
-                                      {isReview ? 'Review' : app.aiPassed ? 'Pass' : 'Fail'}
-                                    </span>
-                                  )
-                                })()}
-                              </td>
-                            )}
-                            <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                              <div className="flex items-center justify-end gap-2">
-                                {bucket.id === 'needs_decision' && pipelineMode === 'suggestion' && (
-                                  <>
-                                    <button
-                                      onClick={() => handleAdvance(app.id)}
-                                      disabled={isLoading(app.id)}
-                                      className="rounded px-2.5 py-1 text-xs font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-                                    >
-                                      ✓ Advance
-                                    </button>
-                                    <button
-                                      onClick={() => handleReject(app.id)}
-                                      disabled={isLoading(app.id)}
-                                      className="rounded px-2.5 py-1 text-xs font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
-                                    >
-                                      ✗ Reject
-                                    </button>
-                                  </>
-                                )}
-                                <button
-                                  onClick={() => setSelectedAppId(app.id === selectedAppId ? null : app.id)}
-                                  className="text-xs text-gray-500 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                        </div>
+
+                        {/* AI rec (needs decision only) */}
+                        {bucket.id === 'needs_decision' && pipelineMode === 'suggestion' && app.aiPassed !== null && (
+                          <div className="hidden sm:block w-14 shrink-0">
+                            {(() => {
+                              const isReview = app.aiPassed && app.score !== null && app.score < 70
+                              return (
+                                <span
+                                  className="text-[11px] font-semibold px-1.5 py-0.5 rounded"
+                                  style={{
+                                    backgroundColor: isReview ? '#FEF3C7' : app.aiPassed ? '#DCFCE7' : '#FEE2E2',
+                                    color: isReview ? '#92400E' : app.aiPassed ? '#166534' : '#991B1B',
+                                  }}
                                 >
-                                  View →
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                                  {isReview ? 'Review' : app.aiPassed ? 'Pass' : 'Fail'}
+                                </span>
+                              )
+                            })()}
+                          </div>
+                        )}
+
+                        {/* Age */}
+                        <div className="hidden sm:block w-14 text-right shrink-0">
+                          <span className="text-[11px]" style={{ color: 'var(--ui-text-muted)' }}>
+                            {timeAgo(app.createdAt)}
+                          </span>
+                        </div>
+
+                        {/* Actions */}
+                        <div
+                          className="flex items-center gap-1.5 shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {bucket.id === 'needs_decision' && pipelineMode === 'suggestion' && (
+                            <>
+                              <button
+                                onClick={() => handleAdvance(app.id)}
+                                disabled={isLoading(app.id)}
+                                className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors disabled:opacity-50"
+                                style={{ backgroundColor: '#16a34a' }}
+                              >
+                                Advance
+                              </button>
+                              <button
+                                onClick={() => handleReject(app.id)}
+                                disabled={isLoading(app.id)}
+                                className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors disabled:opacity-50"
+                                style={{ backgroundColor: '#dc2626' }}
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => setSelectedAppId(app.id === selectedAppId ? null : app.id)}
+                            className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors border"
+                            style={{
+                              borderColor: 'var(--ui-border)',
+                              color: 'var(--ui-text-secondary)',
+                              backgroundColor: 'var(--ui-card-bg)',
+                            }}
+                          >
+                            View
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -285,14 +331,17 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
           })}
 
           {apps.length === 0 && (
-            <div className="bg-white rounded-lg border border-gray-200 px-6 py-16 text-center">
-              <p className="text-sm text-gray-400">No applicants yet.</p>
+            <div
+              className="rounded-xl border py-16 text-center"
+              style={{ backgroundColor: 'var(--ui-card-bg)', borderColor: 'var(--ui-border)' }}
+            >
+              <p className="text-sm" style={{ color: 'var(--ui-text-muted)' }}>No applicants yet.</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Right: slide-out panel */}
+      {/* Detail panel */}
       <ApplicantPanel
         appId={selectedAppId}
         app={selectedApp}

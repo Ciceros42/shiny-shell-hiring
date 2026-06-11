@@ -1,25 +1,31 @@
 import { requireAdmin } from '@/lib/auth/require-admin'
 import { adminDb } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
+import Link from 'next/link'
 import type { ApplicationStatus } from '@/lib/db/applications'
 
 export const revalidate = 60
 
 type StatusCount = Record<ApplicationStatus, number>
 
-const PIPELINE_STAGES: { status: ApplicationStatus; label: string; color: string }[] = [
-  { status: 'applied',             label: 'Applied',          color: 'bg-gray-100 text-gray-700' },
-  { status: 'sms_sent',            label: 'SMS Sent',         color: 'bg-blue-50 text-blue-700' },
-  { status: 'screen_link_clicked', label: 'Link Opened',      color: 'bg-indigo-50 text-indigo-700' },
-  { status: 'screening',           label: 'On Call',          color: 'bg-yellow-50 text-yellow-700' },
-  { status: 'screen_complete',     label: 'Screen Done',      color: 'bg-orange-50 text-orange-700' },
-  { status: 'passed',              label: 'Passed',           color: 'bg-green-50 text-green-700' },
-  { status: 'failed',              label: 'Failed',           color: 'bg-red-50 text-red-700' },
-  { status: 'scheduled',           label: 'Interview Set',    color: 'bg-teal-50 text-teal-700' },
-  { status: 'interviewed',         label: 'Interviewed',      color: 'bg-purple-50 text-purple-700' },
-  { status: 'hired',               label: 'Hired',            color: 'bg-emerald-50 text-emerald-700' },
-  { status: 'no_show',             label: 'No Show',          color: 'bg-rose-50 text-rose-700' },
-  { status: 'rejected',            label: 'Rejected',         color: 'bg-slate-50 text-slate-600' },
+const PIPELINE_STAGES: {
+  status: ApplicationStatus
+  label: string
+  dot: string
+  group: 'neutral' | 'active' | 'positive' | 'negative'
+}[] = [
+  { status: 'applied',             label: 'Applied',       dot: 'bg-gray-400',    group: 'neutral'  },
+  { status: 'sms_sent',            label: 'SMS Sent',      dot: 'bg-blue-400',    group: 'active'   },
+  { status: 'screen_link_clicked', label: 'Link Opened',   dot: 'bg-indigo-400',  group: 'active'   },
+  { status: 'screening',           label: 'On Call',       dot: 'bg-yellow-400',  group: 'active'   },
+  { status: 'screen_complete',     label: 'Screen Done',   dot: 'bg-orange-400',  group: 'active'   },
+  { status: 'passed',              label: 'Passed',        dot: 'bg-green-500',   group: 'positive' },
+  { status: 'scheduled',           label: 'Interview Set', dot: 'bg-teal-500',    group: 'positive' },
+  { status: 'interviewed',         label: 'Interviewed',   dot: 'bg-purple-500',  group: 'positive' },
+  { status: 'hired',               label: 'Hired',         dot: 'bg-emerald-500', group: 'positive' },
+  { status: 'no_show',             label: 'No Show',       dot: 'bg-rose-400',    group: 'negative' },
+  { status: 'failed',              label: 'Failed',        dot: 'bg-red-400',     group: 'negative' },
+  { status: 'rejected',            label: 'Rejected',      dot: 'bg-slate-400',   group: 'negative' },
 ]
 
 export default async function DashboardPage() {
@@ -29,7 +35,6 @@ export default async function DashboardPage() {
 
   const since30d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()
 
-  // Pipeline counts — explicitly scoped to the active company
   let appQuery = adminDb
     .from('applications')
     .select('status, created_at')
@@ -51,26 +56,22 @@ export default async function DashboardPage() {
     (r) => !['failed', 'rejected', 'hired'].includes(r.status)
   ).length
 
-  // SLA stats — needs a location_id; skip for company admins without a location
   type SlaStats = { median_minutes: number | null; pct_under_10_min: number | null }
   let slaStats: SlaStats | null = null
-  const slaLocationId = locationId ?? null
-
-  if (slaLocationId) {
+  if (locationId) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: sla } = await (adminDb as any)
-      .rpc('get_screen_sla_stats', { p_location_id: slaLocationId })
+      .rpc('get_screen_sla_stats', { p_location_id: locationId })
       .single()
     slaStats = sla as SlaStats | null
   }
 
-  // Recent applications (last 10 with applicant name)
   let recentQuery = adminDb
     .from('applications')
     .select('id, status, created_at, applicants(name), locations(name)')
     .eq('company_id', companyId)
     .order('created_at', { ascending: false })
-    .limit(10)
+    .limit(8)
 
   if (role === 'location_manager' && locationId) {
     recentQuery = recentQuery.eq('location_id', locationId)
@@ -78,113 +79,177 @@ export default async function DashboardPage() {
 
   const { data: recent } = await recentQuery
 
-  const today = new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+  const today = new Date().toLocaleDateString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+  })
 
   return (
-    <div className="p-8 max-w-6xl">
-      {/* Header */}
+    <div className="p-8 max-w-5xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500">{today} · Last 30 days</p>
+        <h1 className="text-[22px] font-semibold tracking-tight" style={{ color: 'var(--ui-text-primary)' }}>
+          Dashboard
+        </h1>
+        <p className="mt-0.5 text-sm" style={{ color: 'var(--ui-text-muted)' }}>
+          {today} · Last 30 days
+        </p>
       </div>
 
-      {/* Top stat row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Stat cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="Active Applicants" value={totalActive} />
-        <StatCard label="Hired (30d)" value={counts['hired'] ?? 0} highlight />
+        <StatCard label="Hired (30d)" value={counts['hired'] ?? 0} accent />
         <StatCard
-          label="Speed-to-Call (median)"
+          label="Speed-to-Call"
           value={slaStats?.median_minutes != null ? `${slaStats.median_minutes}m` : '—'}
-          sub="time from apply to screen"
+          sub="median, apply → screen"
         />
         <StatCard
-          label="< 10 min Screen Rate"
+          label="Under 10 min"
           value={slaStats?.pct_under_10_min != null ? `${slaStats.pct_under_10_min}%` : '—'}
-          sub="7-day window"
-          highlight={
-            slaStats?.pct_under_10_min != null && slaStats.pct_under_10_min >= 80
-          }
+          sub="of screen calls (7-day)"
+          accent={slaStats?.pct_under_10_min != null && slaStats.pct_under_10_min >= 80}
         />
       </div>
 
-      {/* Pipeline funnel */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">
-          Pipeline (last 30 days)
-        </h2>
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3">
-          {PIPELINE_STAGES.map(({ status, label, color }) => (
-            <div
-              key={status}
-              className={`rounded-lg px-3 py-3 text-center ${color}`}
-            >
-              <p className="text-2xl font-bold">{counts[status] ?? 0}</p>
-              <p className="text-xs mt-0.5 font-medium">{label}</p>
-            </div>
-          ))}
+      {/* Pipeline strip */}
+      <Card className="mb-6">
+        <p className="section-label mb-4">Pipeline · 30 days</p>
+        <div className="space-y-2.5">
+          <div className="flex flex-wrap gap-2">
+            {PIPELINE_STAGES.filter(s => s.group === 'neutral' || s.group === 'active').map(({ status, label, dot }) => (
+              <StagePill key={status} label={label} count={counts[status] ?? 0} dot={dot} />
+            ))}
+          </div>
+          <hr style={{ borderColor: 'var(--ui-border)' }} />
+          <div className="flex flex-wrap gap-2 items-center">
+            {PIPELINE_STAGES.filter(s => s.group === 'positive').map(({ status, label, dot }) => (
+              <StagePill key={status} label={label} count={counts[status] ?? 0} dot={dot} />
+            ))}
+            <span className="mx-1 text-xs" style={{ color: 'var(--ui-border)' }}>|</span>
+            {PIPELINE_STAGES.filter(s => s.group === 'negative').map(({ status, label, dot }) => (
+              <StagePill key={status} label={label} count={counts[status] ?? 0} dot={dot} muted />
+            ))}
+          </div>
         </div>
-      </div>
+      </Card>
 
       {/* Recent applications */}
-      <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-6 py-4 border-b border-gray-200">
-          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
-            Recent Applications
-          </h2>
+      <Card>
+        <div className="flex items-center justify-between mb-0 -mt-1 pb-3" style={{ borderBottom: '1px solid var(--ui-border)' }}>
+          <p className="section-label">Recent Applications</p>
+          <Link href="/applicants" className="text-[12px] font-medium transition-colors" style={{ color: 'var(--ui-accent)' }}>
+            View all →
+          </Link>
         </div>
-        <div className="divide-y divide-gray-100">
+        <div className="-mx-5 -mb-5">
           {(recent ?? []).length === 0 && (
-            <p className="px-6 py-8 text-sm text-gray-400 text-center">No applications yet.</p>
+            <p className="px-5 py-10 text-sm text-center" style={{ color: 'var(--ui-text-muted)' }}>
+              No applications yet.
+            </p>
           )}
           {(recent ?? []).map((app) => {
             const applicant = app.applicants as unknown as { name: string } | null
             const location = app.locations as unknown as { name: string } | null
             const stageInfo = PIPELINE_STAGES.find((s) => s.status === app.status)
-            const age = formatAge(app.created_at)
             return (
-              <div key={app.id} className="px-6 py-3 flex items-center justify-between gap-4">
+              <div
+                key={app.id}
+                className="flex items-center justify-between px-5 py-3 transition-colors cursor-default"
+                style={{ borderTop: '1px solid var(--ui-border)' }}
+                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--ui-content-bg)')}
+                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '')}
+              >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 truncate">
+                  <p className="text-[13px] font-medium truncate" style={{ color: 'var(--ui-text-primary)' }}>
                     {applicant?.name ?? '—'}
                   </p>
-                  {role === 'company_admin' && (
-                    <p className="text-xs text-gray-400 truncate">{location?.name ?? ''}</p>
+                  {role !== 'location_manager' && (
+                    <p className="text-[11px] truncate" style={{ color: 'var(--ui-text-muted)' }}>{location?.name ?? ''}</p>
                   )}
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${stageInfo?.color ?? 'bg-gray-100 text-gray-600'}`}>
-                    {stageInfo?.label ?? app.status}
+                  {stageInfo && (
+                    <span className="flex items-center gap-1.5">
+                      <span className={`h-1.5 w-1.5 rounded-full ${stageInfo.dot}`} />
+                      <span className="text-[12px]" style={{ color: 'var(--ui-text-secondary)' }}>{stageInfo.label}</span>
+                    </span>
+                  )}
+                  <span className="text-[11px] w-12 text-right" style={{ color: 'var(--ui-text-muted)' }}>
+                    {formatAge(app.created_at)}
                   </span>
-                  <span className="text-xs text-gray-400 w-14 text-right">{age}</span>
                 </div>
               </div>
             )
           })}
         </div>
-      </div>
+      </Card>
+    </div>
+  )
+}
+
+function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div
+      className={`rounded-xl border p-5 ${className}`}
+      style={{
+        backgroundColor: 'var(--ui-card-bg)',
+        borderColor: 'var(--ui-border)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+      }}
+    >
+      <style>{`.section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ui-text-muted); }`}</style>
+      {children}
     </div>
   )
 }
 
 function StatCard({
-  label,
-  value,
-  sub,
-  highlight,
+  label, value, sub, accent,
 }: {
-  label: string
-  value: string | number
-  sub?: string
-  highlight?: boolean
+  label: string; value: string | number; sub?: string; accent?: boolean
 }) {
   return (
-    <div className={`rounded-lg border p-4 ${highlight ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}>
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
-      <p className={`text-3xl font-bold mt-1 ${highlight ? 'text-emerald-700' : 'text-gray-900'}`}>
+    <div
+      className="rounded-xl border p-5"
+      style={{
+        backgroundColor: accent ? 'var(--ui-accent-muted)' : 'var(--ui-card-bg)',
+        borderColor: accent ? 'var(--ui-accent)' : 'var(--ui-border)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+      }}
+    >
+      <p
+        className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-2"
+        style={{ color: accent ? 'var(--ui-accent)' : 'var(--ui-text-muted)' }}
+      >
+        {label}
+      </p>
+      <p
+        className="text-[26px] font-bold leading-none"
+        style={{ color: accent ? 'var(--ui-accent)' : 'var(--ui-text-primary)' }}
+      >
         {value}
       </p>
-      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+      {sub && <p className="text-[11px] mt-1.5" style={{ color: 'var(--ui-text-muted)' }}>{sub}</p>}
     </div>
+  )
+}
+
+function StagePill({ label, count, dot, muted }: { label: string; count: number; dot: string; muted?: boolean }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium"
+      style={{
+        backgroundColor: muted ? 'transparent' : 'var(--ui-content-bg)',
+        border: `1px solid var(--ui-border)`,
+        color: muted ? 'var(--ui-text-muted)' : 'var(--ui-text-secondary)',
+      }}
+    >
+      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dot}`} />
+      {label}
+      <span className="font-bold" style={{ color: muted ? 'var(--ui-text-muted)' : 'var(--ui-text-primary)' }}>
+        {count}
+      </span>
+    </span>
   )
 }
 
@@ -194,6 +259,5 @@ function formatAge(iso: string): string {
   if (mins < 60) return `${mins}m ago`
   const hrs = Math.floor(mins / 60)
   if (hrs < 24) return `${hrs}h ago`
-  const days = Math.floor(hrs / 24)
-  return `${days}d ago`
+  return `${Math.floor(hrs / 24)}d ago`
 }

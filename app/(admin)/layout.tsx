@@ -38,7 +38,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   } catch {}
 
   return (
-    <div className="h-screen bg-gray-50 flex overflow-hidden">
+    <div className="h-screen flex overflow-hidden" style={{ backgroundColor: 'var(--ui-content-bg)' }}>
       <style>{`:root { ${themeToCSS(theme)} }`}</style>
       <AdminNav
         companyName={theme.displayName}

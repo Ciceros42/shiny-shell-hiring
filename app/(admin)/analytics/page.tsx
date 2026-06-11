@@ -7,15 +7,15 @@ export const revalidate = 60
 type SearchParams = { days?: string }
 
 const FUNNEL_STAGES = [
-  { status: 'applied',             label: 'Applied',       color: 'bg-gray-400' },
-  { status: 'sms_sent',            label: 'SMS Sent',      color: 'bg-blue-400' },
-  { status: 'screen_link_clicked', label: 'Link Opened',   color: 'bg-indigo-400' },
-  { status: 'screening',           label: 'On Call',       color: 'bg-yellow-400' },
-  { status: 'screen_complete',     label: 'Screen Done',   color: 'bg-orange-400' },
-  { status: 'passed',              label: 'Passed',        color: 'bg-green-500' },
-  { status: 'scheduled',           label: 'Interview Set', color: 'bg-teal-500' },
-  { status: 'interviewed',         label: 'Interviewed',   color: 'bg-purple-500' },
-  { status: 'hired',               label: 'Hired',         color: 'bg-emerald-500' },
+  { status: 'applied',             label: 'Applied',       color: '#94A3B8' },
+  { status: 'sms_sent',            label: 'SMS Sent',      color: '#60A5FA' },
+  { status: 'screen_link_clicked', label: 'Link Opened',   color: '#818CF8' },
+  { status: 'screening',           label: 'On Call',       color: '#FBBF24' },
+  { status: 'screen_complete',     label: 'Screen Done',   color: '#FB923C' },
+  { status: 'passed',              label: 'Passed',        color: '#4ADE80' },
+  { status: 'scheduled',           label: 'Interview Set', color: '#2DD4BF' },
+  { status: 'interviewed',         label: 'Interviewed',   color: '#A78BFA' },
+  { status: 'hired',               label: 'Hired',         color: '#34D399' },
 ] as const
 
 export default async function AnalyticsPage({
@@ -33,7 +33,6 @@ export default async function AnalyticsPage({
   if (error) redirect('/login')
   const { companyId, locationId, role } = profile
 
-  // --- Pipeline counts (admin client, explicitly scoped) ---
   let appQuery = adminDb
     .from('applications')
     .select('status, created_at, id')
@@ -47,12 +46,11 @@ export default async function AnalyticsPage({
   const { data: appRows } = await appQuery
   const allApps = appRows ?? []
 
-  // Cumulative counts per stage — an app in 'hired' should count for every upstream stage too
   const STAGE_ORDER = [
     'applied', 'sms_sent', 'screen_link_clicked', 'screening',
     'screen_complete', 'passed', 'scheduled', 'interviewed', 'hired',
   ]
-  // Count apps that REACHED each stage (status = this stage OR any later stage)
+
   const reachedCounts: Record<string, number> = {}
   for (const stage of FUNNEL_STAGES) {
     const stageIdx = STAGE_ORDER.indexOf(stage.status)
@@ -63,13 +61,7 @@ export default async function AnalyticsPage({
   }
 
   const topCount = reachedCounts['applied'] || 1
-
-  // --- Cost metrics (admin client — sms_log has no user-facing RLS) ---
-  const hiredAppIds = allApps
-    .filter((a) => a.status === 'hired')
-    .map((a) => a.id)
-
-  const hiredCount = hiredAppIds.length
+  const hiredCount = (allApps.filter((a) => a.status === 'hired')).length
 
   let totalScreenCost = 0
   let totalSmsCost = 0
@@ -104,10 +96,7 @@ export default async function AnalyticsPage({
   const costPerHire = hiredCount > 0 ? totalCost / hiredCount : null
   const costPerScreen = screenCallCount > 0 ? totalScreenCost / screenCallCount : null
 
-  // --- SLA stats ---
   type SlaStats = { median_minutes: number | null; pct_under_10_min: number | null }
-
-  // Company admins have no location_id — fall back to first location in their company
   let slaLocationId = locationId ?? null
   if (!slaLocationId) {
     const { data: firstLoc } = await adminDb
@@ -132,21 +121,26 @@ export default async function AnalyticsPage({
 
   return (
     <div className="p-8 max-w-4xl">
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Analytics</h1>
-          <p className="mt-0.5 text-sm text-gray-500">{periodLabel} · {allApps.length} applications</p>
+          <h1 className="text-[22px] font-semibold tracking-tight" style={{ color: 'var(--ui-text-primary)' }}>
+            Analytics
+          </h1>
+          <p className="mt-0.5 text-sm" style={{ color: 'var(--ui-text-muted)' }}>
+            {periodLabel} · {allApps.length} applications
+          </p>
         </div>
         <PeriodPicker current={days} />
       </div>
 
-      {/* Cost metrics */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* Metric cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <MetricCard
           label="Cost / Hire"
           value={costPerHire != null ? `$${costPerHire.toFixed(2)}` : '—'}
           sub={hiredCount > 0 ? `${hiredCount} hired` : 'no hires yet'}
-          highlight={hiredCount > 0}
+          accent={hiredCount > 0}
         />
         <MetricCard
           label="Total Spend"
@@ -166,32 +160,44 @@ export default async function AnalyticsPage({
       </div>
 
       {/* Funnel */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 mb-8">
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-5">
+      <div
+        className="rounded-xl border p-6 mb-6"
+        style={{ backgroundColor: 'var(--ui-card-bg)', borderColor: 'var(--ui-border)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-5" style={{ color: 'var(--ui-text-muted)' }}>
           Hiring Funnel
-        </h2>
-        <div className="space-y-3">
+        </p>
+        <div className="space-y-2.5">
           {FUNNEL_STAGES.map((stage, i) => {
             const count = reachedCounts[stage.status] ?? 0
             const prevCount = i > 0 ? (reachedCounts[FUNNEL_STAGES[i - 1].status] ?? 1) : topCount
             const convRate = prevCount > 0 ? Math.round((count / prevCount) * 100) : 0
-            const barPct = topCount > 0 ? Math.max((count / topCount) * 100, count > 0 ? 1 : 0) : 0
+            const barPct = topCount > 0 ? Math.max((count / topCount) * 100, count > 0 ? 2 : 0) : 0
 
             return (
               <div key={stage.status} className="flex items-center gap-3">
                 <div className="w-28 shrink-0 text-right">
-                  <span className="text-xs font-medium text-gray-600">{stage.label}</span>
+                  <span className="text-[12px] font-medium" style={{ color: 'var(--ui-text-secondary)' }}>
+                    {stage.label}
+                  </span>
                 </div>
-                <div className="flex-1 h-7 bg-gray-100 rounded overflow-hidden">
+                <div className="flex-1 h-6 rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--ui-content-bg)' }}>
                   <div
-                    className={`h-full rounded ${stage.color} transition-all`}
-                    style={{ width: `${barPct}%` }}
+                    className="h-full rounded-lg transition-all"
+                    style={{ width: `${barPct}%`, backgroundColor: stage.color, opacity: 0.85 }}
                   />
                 </div>
-                <div className="w-20 shrink-0 flex items-center gap-2">
-                  <span className="text-sm font-bold text-gray-900 w-8 text-right">{count}</span>
+                <div className="w-16 shrink-0 flex items-center gap-2">
+                  <span className="text-sm font-bold w-7 text-right" style={{ color: 'var(--ui-text-primary)' }}>
+                    {count}
+                  </span>
                   {i > 0 && count > 0 && (
-                    <span className={`text-xs ${convRate >= 70 ? 'text-green-600' : convRate >= 40 ? 'text-yellow-600' : 'text-red-500'}`}>
+                    <span
+                      className="text-[11px] font-medium"
+                      style={{
+                        color: convRate >= 70 ? '#16a34a' : convRate >= 40 ? '#ca8a04' : '#dc2626',
+                      }}
+                    >
                       {convRate}%
                     </span>
                   )}
@@ -200,16 +206,19 @@ export default async function AnalyticsPage({
             )
           })}
         </div>
-        <p className="mt-4 text-xs text-gray-400">
-          Each row counts applicants who reached that stage or beyond. Rejected/failed applicants are excluded. Conversion % is relative to the previous stage.
+        <p className="mt-4 text-[11px]" style={{ color: 'var(--ui-text-muted)' }}>
+          Each row counts applicants who reached that stage or beyond. % is relative to the previous stage.
         </p>
       </div>
 
-      {/* Drop-off summary */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-4">
+      {/* Drop-off */}
+      <div
+        className="rounded-xl border p-6"
+        style={{ backgroundColor: 'var(--ui-card-bg)', borderColor: 'var(--ui-border)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+      >
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-4" style={{ color: 'var(--ui-text-muted)' }}>
           Drop-off Analysis
-        </h2>
+        </p>
         <div className="space-y-2">
           {FUNNEL_STAGES.slice(1).map((stage, i) => {
             const count = reachedCounts[stage.status] ?? 0
@@ -219,18 +228,21 @@ export default async function AnalyticsPage({
             if (dropped <= 0) return null
             const dropPct = prevCount > 0 ? Math.round((dropped / prevCount) * 100) : 0
             return (
-              <div key={stage.status} className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">
+              <div key={stage.status} className="flex items-center justify-between text-[13px]">
+                <span style={{ color: 'var(--ui-text-secondary)' }}>
                   {prevStage.label} → {stage.label}
                 </span>
-                <span className={`font-medium ${dropPct >= 60 ? 'text-red-600' : dropPct >= 30 ? 'text-yellow-600' : 'text-gray-600'}`}>
+                <span
+                  className="font-semibold"
+                  style={{ color: dropPct >= 60 ? '#dc2626' : dropPct >= 30 ? '#ca8a04' : 'var(--ui-text-secondary)' }}
+                >
                   {dropped} dropped ({dropPct}%)
                 </span>
               </div>
             )
           })}
           {allApps.length === 0 && (
-            <p className="text-sm text-gray-400">No data for this period.</p>
+            <p className="text-sm" style={{ color: 'var(--ui-text-muted)' }}>No data for this period.</p>
           )}
         </div>
       </div>
@@ -238,14 +250,28 @@ export default async function AnalyticsPage({
   )
 }
 
-function MetricCard({ label, value, sub, highlight }: {
-  label: string; value: string; sub?: string; highlight?: boolean
+function MetricCard({ label, value, sub, accent }: {
+  label: string; value: string; sub?: string; accent?: boolean
 }) {
   return (
-    <div className={`rounded-lg border p-4 ${highlight ? 'bg-emerald-50 border-emerald-200' : 'bg-white border-gray-200'}`}>
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
-      <p className={`text-2xl font-bold mt-1 ${highlight ? 'text-emerald-700' : 'text-gray-900'}`}>{value}</p>
-      {sub && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
+    <div
+      className="rounded-xl border p-5"
+      style={{
+        backgroundColor: accent ? 'var(--ui-accent-muted)' : 'var(--ui-card-bg)',
+        borderColor: accent ? 'var(--ui-accent)' : 'var(--ui-border)',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+      }}
+    >
+      <p
+        className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-2"
+        style={{ color: accent ? 'var(--ui-accent)' : 'var(--ui-text-muted)' }}
+      >
+        {label}
+      </p>
+      <p className="text-[22px] font-bold leading-none" style={{ color: accent ? 'var(--ui-accent)' : 'var(--ui-text-primary)' }}>
+        {value}
+      </p>
+      {sub && <p className="text-[11px] mt-1.5" style={{ color: 'var(--ui-text-muted)' }}>{sub}</p>}
     </div>
   )
 }
@@ -257,16 +283,20 @@ function PeriodPicker({ current }: { current: number }) {
     { label: 'All', value: 0 },
   ]
   return (
-    <div className="flex rounded-md border border-gray-300 overflow-hidden text-sm">
+    <div
+      className="flex rounded-lg overflow-hidden text-[12px] font-medium"
+      style={{ border: '1px solid var(--ui-border)' }}
+    >
       {options.map((opt) => (
         <a
           key={opt.value}
           href={`?days=${opt.value}`}
-          className={`px-3 py-1.5 font-medium transition-colors ${
+          className="px-3 py-1.5 transition-colors"
+          style={
             current === opt.value
-              ? 'bg-blue-600 text-white'
-              : 'text-gray-600 hover:bg-gray-50'
-          }`}
+              ? { backgroundColor: 'var(--ui-accent)', color: 'var(--ui-accent-fg)' }
+              : { color: 'var(--ui-text-secondary)', backgroundColor: 'var(--ui-card-bg)' }
+          }
         >
           {opt.label}
         </a>

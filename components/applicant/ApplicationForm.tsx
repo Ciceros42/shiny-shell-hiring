@@ -11,6 +11,9 @@ interface Props {
   formQuestions?: AppFormQuestion[]
 }
 
+const inputClass =
+  'w-full rounded-xl border border-gray-200 px-4 text-[15px] text-gray-900 placeholder:text-gray-400 focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] transition-colors'
+
 export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuestions = [] }: Props) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -20,17 +23,17 @@ export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuesti
   const [phone, setPhone] = useState('')
   const [email, setEmail] = useState('')
   const [preferEmail, setPreferEmail] = useState(false)
-  const [website, setWebsite] = useState('') // honeypot
-  // questionId -> selected option texts
+  const [website, setWebsite] = useState('')
   const [responses, setResponses] = useState<Record<string, string[]>>({})
-
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
 
   function toggleOption(questionId: string, optionText: string, type: 'single' | 'multi') {
     setResponses((prev) => {
       if (type === 'single') return { ...prev, [questionId]: [optionText] }
       const current = prev[questionId] ?? []
-      const next = current.includes(optionText) ? current.filter((o) => o !== optionText) : [...current, optionText]
+      const next = current.includes(optionText)
+        ? current.filter((o) => o !== optionText)
+        : [...current, optionText]
       return { ...prev, [questionId]: next }
     })
   }
@@ -97,8 +100,8 @@ export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuesti
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6" noValidate>
-      {/* Honeypot — hidden from users, visible to bots */}
+    <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+      {/* Honeypot */}
       <input
         type="text"
         name="website"
@@ -109,9 +112,10 @@ export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuesti
         autoComplete="off"
       />
 
+      {/* Name */}
       <div>
-        <label htmlFor="name" className="mb-1 block text-sm font-medium text-gray-700">
-          Full name *
+        <label htmlFor="name" className="block text-[13px] font-semibold text-gray-700 mb-1.5">
+          Full name <span className="text-red-400">*</span>
         </label>
         <input
           id="name"
@@ -119,15 +123,17 @@ export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuesti
           value={name}
           onChange={(e) => setName(e.target.value)}
           autoComplete="name"
-          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className={inputClass}
+          style={{ height: '48px' }}
           placeholder="Jane Smith"
         />
-        {fieldErrors.name && <p className="mt-1 text-sm text-red-600">{fieldErrors.name}</p>}
+        {fieldErrors.name && <p className="mt-1 text-[12px] text-red-500">{fieldErrors.name}</p>}
       </div>
 
+      {/* Phone */}
       <div>
-        <label htmlFor="phone" className="mb-1 block text-sm font-medium text-gray-700">
-          Mobile phone number *
+        <label htmlFor="phone" className="block text-[13px] font-semibold text-gray-700 mb-1.5">
+          Mobile phone <span className="text-red-400">*</span>
         </label>
         <input
           id="phone"
@@ -136,15 +142,18 @@ export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuesti
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           autoComplete="tel"
-          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className={inputClass}
+          style={{ height: '48px' }}
           placeholder="(555) 123-4567"
         />
-        {fieldErrors.phone && <p className="mt-1 text-sm text-red-600">{fieldErrors.phone}</p>}
+        {fieldErrors.phone && <p className="mt-1 text-[12px] text-red-500">{fieldErrors.phone}</p>}
       </div>
 
+      {/* Email */}
       <div>
-        <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
-          Email address <span className="text-gray-400">(optional)</span>
+        <label htmlFor="email" className="block text-[13px] font-semibold text-gray-700 mb-1.5">
+          Email{' '}
+          <span className="font-normal text-gray-400">(optional)</span>
         </label>
         <input
           id="email"
@@ -153,30 +162,41 @@ export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuesti
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           autoComplete="email"
-          className="w-full rounded-lg border border-gray-300 px-4 py-3 text-base focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className={inputClass}
+          style={{ height: '48px' }}
           placeholder="jane@example.com"
         />
       </div>
 
+      {/* Contact preference */}
       {email.trim() && (
         <div>
-          <p className="mb-2 text-sm font-medium text-gray-700">
-            How would you like to receive updates about your application?
+          <p className="text-[13px] font-semibold text-gray-700 mb-2">
+            Preferred contact method
           </p>
-          <div className="flex gap-4">
+          <div className="flex gap-3">
             {[
               { value: false, label: 'Text (SMS)' },
-              { value: true, label: 'Email' },
+              { value: true,  label: 'Email' },
             ].map(({ value, label }) => (
               <button
                 key={label}
                 type="button"
                 onClick={() => setPreferEmail(value)}
-                className={`flex-1 rounded-lg border-2 py-3 text-sm font-medium transition-colors ${
+                className="flex-1 rounded-xl border-2 py-3 text-[14px] font-semibold transition-all duration-150"
+                style={
                   preferEmail === value
-                    ? 'border-blue-600 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 text-gray-700 hover:border-gray-300'
-                }`}
+                    ? {
+                        backgroundColor: 'var(--brand-primary)',
+                        borderColor: 'var(--brand-primary)',
+                        color: 'var(--brand-primary-fg)',
+                      }
+                    : {
+                        backgroundColor: '#ffffff',
+                        borderColor: '#E5E7EB',
+                        color: '#374151',
+                      }
+                }
               >
                 {label}
               </button>
@@ -185,66 +205,105 @@ export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuesti
         </div>
       )}
 
-      {/* Custom application form questions */}
+      {/* Custom questions */}
       {formQuestions.map((q) => {
         const selected = responses[q.id] ?? []
         return (
           <div key={q.id}>
-            <p className="mb-2 text-sm font-medium text-gray-700">
-              {q.questionText} {q.isRequired && <span className="text-gray-400">*</span>}
+            <p className="text-[13px] font-semibold text-gray-700 mb-2">
+              {q.questionText}{' '}
+              {q.isRequired && <span className="text-red-400">*</span>}
             </p>
-            <div className={q.questionType === 'single' ? 'flex gap-3 flex-wrap' : 'space-y-2'}>
-              {q.options.map((opt) => {
-                const isSelected = selected.includes(opt.text)
-                if (q.questionType === 'single') {
+            {q.questionType === 'single' ? (
+              <div className="flex flex-wrap gap-2">
+                {q.options.map((opt) => {
+                  const isSelected = selected.includes(opt.text)
                   return (
                     <button
                       key={opt.text}
                       type="button"
                       onClick={() => toggleOption(q.id, opt.text, 'single')}
-                      className={`flex-1 rounded-lg border-2 py-3 px-4 text-sm font-medium transition-colors ${
-                        isSelected ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-700 hover:border-gray-300'
-                      }`}
+                      className="rounded-xl border-2 px-4 py-2.5 text-[14px] font-semibold transition-all duration-150"
+                      style={
+                        isSelected
+                          ? {
+                              backgroundColor: 'var(--brand-primary)',
+                              borderColor: 'var(--brand-primary)',
+                              color: 'var(--brand-primary-fg)',
+                            }
+                          : {
+                              backgroundColor: '#ffffff',
+                              borderColor: '#E5E7EB',
+                              color: '#374151',
+                            }
+                      }
                     >
                       {opt.text}
                     </button>
                   )
-                }
-                return (
-                  <label key={opt.text} className="flex items-center gap-3 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleOption(q.id, opt.text, 'multi')}
-                      className="rounded border-gray-300 text-blue-600"
-                    />
-                    <span className="text-sm text-gray-700">{opt.text}</span>
-                  </label>
-                )
-              })}
-            </div>
+                })}
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {q.options.map((opt) => {
+                  const isSelected = selected.includes(opt.text)
+                  return (
+                    <button
+                      key={opt.text}
+                      type="button"
+                      onClick={() => toggleOption(q.id, opt.text, 'multi')}
+                      className="rounded-xl border-2 px-4 py-2.5 text-[14px] font-semibold transition-all duration-150"
+                      style={
+                        isSelected
+                          ? {
+                              backgroundColor: 'var(--brand-primary)',
+                              borderColor: 'var(--brand-primary)',
+                              color: 'var(--brand-primary-fg)',
+                            }
+                          : {
+                              backgroundColor: '#ffffff',
+                              borderColor: '#E5E7EB',
+                              color: '#374151',
+                            }
+                      }
+                    >
+                      {isSelected && <span className="mr-1.5">✓</span>}
+                      {opt.text}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
             {fieldErrors[`q_${q.id}`] && (
-              <p className="mt-1 text-sm text-red-600">{fieldErrors[`q_${q.id}`]}</p>
+              <p className="mt-1 text-[12px] text-red-500">{fieldErrors[`q_${q.id}`]}</p>
             )}
           </div>
         )
       })}
 
+      {/* Error */}
       {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-600">
           {error}
         </div>
       )}
 
+      {/* Submit */}
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full rounded-lg bg-blue-600 px-6 py-4 text-base font-semibold text-white transition-colors hover:bg-blue-700 disabled:opacity-60"
+        className="w-full rounded-xl text-[15px] font-bold transition-all duration-150 disabled:opacity-60 hover:brightness-95 active:scale-[0.99]"
+        style={{
+          height: '52px',
+          backgroundColor: 'var(--brand-primary)',
+          color: 'var(--brand-primary-fg)',
+        }}
       >
         {isSubmitting ? 'Submitting…' : 'Apply Now'}
       </button>
 
-      <p className="text-center text-xs text-gray-400">
+      {/* Disclaimer */}
+      <p className="text-center text-[11px] leading-relaxed" style={{ color: '#9CA3AF' }}>
         {preferEmail && email.trim()
           ? 'Updates about your application will be sent to your email address.'
           : 'By submitting, you agree to receive SMS messages about your application. Reply STOP to opt out.'}

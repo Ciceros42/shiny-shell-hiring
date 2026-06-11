@@ -92,25 +92,31 @@ export default async function SettingsPage({
 
   return (
     <div className="p-8 max-w-3xl">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Settings</h1>
+      <div className="mb-8">
+        <h1 className="text-[22px] font-semibold tracking-tight" style={{ color: 'var(--ui-text-primary)' }}>
+          Settings
+        </h1>
+      </div>
 
       {calendar_connected === '1' && (
-        <div className="mb-5 bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800">
-          Google Calendar connected successfully.
+        <div className="mb-5 flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+          <span className="text-green-500 text-base">✓</span>
+          <p className="text-[13px] font-medium text-green-800">Google Calendar connected successfully.</p>
         </div>
       )}
       {calendar_error && (
-        <div className="mb-5 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-800">
-          Calendar error: {calendar_error}
+        <div className="mb-5 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3">
+          <span className="text-red-500 text-base">!</span>
+          <p className="text-[13px] font-medium text-red-700">Calendar error: {calendar_error}</p>
         </div>
       )}
 
       {/* Vapi AI Assistant */}
-      <section className="mb-6 bg-white rounded-lg border border-gray-200 p-5">
-        <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1">
+      <section className="mb-5 rounded-xl border p-5" style={{ backgroundColor: 'var(--ui-card-bg)', borderColor: 'var(--ui-border)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-1" style={{ color: 'var(--ui-text-muted)' }}>
           AI Screening Assistant
-        </h2>
-        <p className="text-xs text-gray-400 mb-5">
+        </p>
+        <p className="text-[12px] mb-5" style={{ color: 'var(--ui-text-muted)' }}>
           Configure the AI that calls applicants for phone screening. Changes go live when you click Deploy.
         </p>
         <VapiAssistantConfig initialConfig={vapiConfig} assistantId={vapiAssistantId} />
