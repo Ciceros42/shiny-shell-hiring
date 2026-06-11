@@ -113,7 +113,8 @@ export default async function DashboardPage() {
 
       {/* Pipeline strip */}
       <Card className="mb-6">
-        <p className="section-label mb-4">Pipeline · 30 days</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-4"
+            style={{ color: 'var(--ui-text-muted)' }}>Pipeline · 30 days</p>
         <div className="space-y-2.5">
           <div className="flex flex-wrap gap-2">
             {PIPELINE_STAGES.filter(s => s.group === 'neutral' || s.group === 'active').map(({ status, label, dot }) => (
@@ -136,7 +137,7 @@ export default async function DashboardPage() {
       {/* Recent applications */}
       <Card>
         <div className="flex items-center justify-between mb-0 -mt-1 pb-3" style={{ borderBottom: '1px solid var(--ui-border)' }}>
-          <p className="section-label">Recent Applications</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em]" style={{ color: 'var(--ui-text-muted)' }}>Recent Applications</p>
           <Link href="/applicants" className="text-[12px] font-medium transition-colors" style={{ color: 'var(--ui-accent)' }}>
             View all →
           </Link>
@@ -154,10 +155,8 @@ export default async function DashboardPage() {
             return (
               <div
                 key={app.id}
-                className="flex items-center justify-between px-5 py-3 transition-colors cursor-default"
+                className="flex items-center justify-between px-5 py-3 transition-colors cursor-default hover:bg-[var(--ui-content-bg)]"
                 style={{ borderTop: '1px solid var(--ui-border)' }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--ui-content-bg)')}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = '')}
               >
                 <div className="min-w-0">
                   <p className="text-[13px] font-medium truncate" style={{ color: 'var(--ui-text-primary)' }}>
@@ -197,7 +196,6 @@ function Card({ children, className = '' }: { children: React.ReactNode; classNa
         boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
       }}
     >
-      <style>{`.section-label { font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ui-text-muted); }`}</style>
       {children}
     </div>
   )
