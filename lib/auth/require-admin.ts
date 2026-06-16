@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { adminDb } from '@/lib/supabase/admin'
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { cache } from 'react'
 
 export interface AdminProfile {
   role: 'dev' | 'company_admin' | 'location_manager'
@@ -9,10 +10,15 @@ export interface AdminProfile {
   locationId: string | null
 }
 
-export async function requireAdmin(): Promise<
+// Wrapped in React cache() so that within a single request the auth round-trip
+// (supabase.auth.getUser) + profiles lookup runs exactly once — even though the
+// admin layout, the page, and any nested server helpers all call requireAdmin().
+// Previously each caller re-ran getUser() (a network round-trip to the auth
+// server) plus its own profiles query, tripling per-navigation latency.
+export const requireAdmin = cache(async (): Promise<
   | { user: { id: string }; profile: AdminProfile; error: null }
   | { user: null; profile: null; error: NextResponse }
-> {
+> => {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -47,4 +53,4 @@ export async function requireAdmin(): Promise<
     },
     error: null,
   }
-}
+})
