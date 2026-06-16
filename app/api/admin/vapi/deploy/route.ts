@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { requireAdmin } from '@/lib/auth/require-admin'
 import { adminDb } from '@/lib/supabase/admin'
 import { buildAssistantConfig } from '@/lib/vapi/assistant'
+import { invalidateCompany } from '@/lib/db/companies'
 
 const vapiConfigSchema = z.object({
   assistantPersonaName: z.string().min(1),
@@ -102,5 +103,6 @@ export async function POST(req: Request) {
     })
     .eq('id', profile.companyId)
 
+  invalidateCompany(profile.companyId)
   return NextResponse.json({ ok: true, assistantId, isNew: !existingAssistantId })
 }

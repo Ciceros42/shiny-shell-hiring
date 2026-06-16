@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth/require-admin'
 import { adminDb } from '@/lib/supabase/admin'
+import { invalidateCompany } from '@/lib/db/companies'
 
 export async function POST(req: Request) {
   const { error, profile } = await requireAdmin()
@@ -19,5 +20,6 @@ export async function POST(req: Request) {
     settings: { ...(company?.settings as object ?? {}), pipeline_mode: mode }
   }).eq('id', profile.companyId)
 
+  invalidateCompany(profile.companyId)
   return NextResponse.json({ ok: true })
 }

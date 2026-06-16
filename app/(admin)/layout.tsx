@@ -9,7 +9,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // same request returns this identical result with no extra auth/DB round-trips.
   // requireAdmin already resolves the dev active_company_id cookie into companyId.
   const { profile, error } = await requireAdmin()
-  if (error || !profile) redirect('/login')
+  if (error) {
+    // 5xx = transient lookup failure → let the error boundary show a retry UI
+    // rather than bouncing a valid user to /login. 401/403 → genuine auth failure.
+    if (error.status >= 500) throw new Error('Admin auth check failed — please retry')
+    redirect('/login')
+  }
+  if (!profile) redirect('/login')
 
   const { role, companyId } = profile
 
