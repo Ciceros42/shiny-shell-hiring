@@ -33,6 +33,18 @@ export async function POST(_req: Request, { params }: RouteContext) {
 
   await createRetentionCheckins(appId)
 
+  // Copy onboarding template items for this company
+  const { data: templates } = await adminDb
+    .from('onboarding_templates')
+    .select('text, order_index')
+    .eq('company_id', profile.companyId)
+    .order('order_index', { ascending: true })
+  if (templates && templates.length > 0) {
+    await adminDb.from('onboarding_items').insert(
+      templates.map((t) => ({ application_id: appId, text: t.text, order_index: t.order_index }))
+    )
+  }
+
   try {
     const applicant = app.applicants as unknown as { phone: string; name: string; sms_opted_out: boolean } | null
     const location = app.locations as unknown as { timezone: string } | null

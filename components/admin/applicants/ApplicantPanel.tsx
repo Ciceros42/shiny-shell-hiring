@@ -29,6 +29,14 @@ interface InterviewDetail {
   interview_slots: { start_time: string } | null
 }
 
+interface OnboardingItem {
+  id: string
+  text: string
+  completed: boolean
+  completed_at: string | null
+  order_index: number
+}
+
 interface DetailData {
   app: {
     id: string
@@ -41,6 +49,7 @@ interface DetailData {
   }
   screenResult: ScreenResult | null
   answers: Answer[]
+  onboardingItems?: OnboardingItem[]
 }
 
 interface Props {
@@ -84,6 +93,8 @@ export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAd
   const [editScore, setEditScore] = useState<number | null>(null)
   const [savingNotes, setSavingNotes] = useState(false)
   const [notesSaved, setNotesSaved] = useState(false)
+  const [onboardingItems, setOnboardingItems] = useState<OnboardingItem[]>([])
+  const [togglingItemId, setTogglingItemId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!appId) { setDetail(null); return }
@@ -95,6 +106,7 @@ export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAd
       .then((r) => r.json())
       .then((d) => {
         setDetail(d)
+        setOnboardingItems(d.onboardingItems ?? [])
         const latestInterview = d.app?.interviews?.[0]
         if (latestInterview) {
           setEditNotes(latestInterview.notes ?? '')
@@ -118,6 +130,28 @@ export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAd
     })
     setSavingNotes(false)
     setNotesSaved(true)
+  }
+
+  async function toggleOnboardingItem(itemId: string, completed: boolean) {
+    setTogglingItemId(itemId)
+    await fetch(`/api/admin/onboarding/items/${itemId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ completed }),
+    })
+    setOnboardingItems(prev => prev.map(i =>
+      i.id === itemId ? { ...i, completed, completed_at: completed ? new Date().toISOString() : null } : i
+    ))
+    setTogglingItemId(null)
+  }
+
+  function openGuide() {
+    if (!appId) return
+    window.open(
+      `/interview-guide/${appId}`,
+      'interview-guide',
+      'width=520,height=750,resizable=yes,scrollbars=yes'
+    )
   }
 
   const open = !!appId
@@ -152,6 +186,16 @@ export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAd
               >
                 Full profile →
               </Link>
+            )}
+            {app && (app.status === 'scheduled' || app.status === 'interviewed') && (
+              <button
+                onClick={openGuide}
+                className="text-xs font-semibold px-2.5 py-1 rounded-md text-white transition-colors"
+                style={{ backgroundColor: '#7C3AED' }}
+                title="Open interview guide in a new window"
+              >
+                Open Guide
+              </button>
             )}
             <button
               onClick={onClose}
@@ -276,6 +320,47 @@ export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAd
                       )
                     })}
                   </div>
+                </section>
+              )}
+
+              {/* Onboarding checklist — hired applicants */}
+              {detail.app.status === 'hired' && onboardingItems.length > 0 && (
+                <section>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--brand-primary)' }}>
+                    Onboarding Checklist
+                  </h3>
+                  <div className="space-y-2">
+                    {onboardingItems.map((item) => (
+                      <label
+                        key={item.id}
+                        className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors"
+                        style={{
+                          borderColor: item.completed ? '#D1FAE5' : '#E5E7EB',
+                          backgroundColor: item.completed ? '#F0FDF4' : '#fff',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={item.completed}
+                          disabled={togglingItemId === item.id}
+                          onChange={() => toggleOnboardingItem(item.id, !item.completed)}
+                          className="rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-50"
+                        />
+                        <span
+                          className="text-sm"
+                          style={{
+                            color: item.completed ? '#15803d' : '#374151',
+                            textDecoration: item.completed ? 'line-through' : 'none',
+                          }}
+                        >
+                          {item.text}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    {onboardingItems.filter(i => i.completed).length}/{onboardingItems.length} complete
+                  </p>
                 </section>
               )}
 

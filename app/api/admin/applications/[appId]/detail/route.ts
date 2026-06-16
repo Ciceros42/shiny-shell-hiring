@@ -32,6 +32,13 @@ export async function GET(_req: Request, { params }: Params) {
 
   if (appError || !app) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
+  // Onboarding checklist items (for hired applicants)
+  const { data: onboardingItems } = await adminDb
+    .from('onboarding_items')
+    .select('id, text, completed, completed_at, order_index')
+    .eq('application_id', appId)
+    .order('order_index', { ascending: true })
+
   // Answers
   const { data: screenCalls } = await adminDb
     .from('screen_calls')
@@ -49,5 +56,5 @@ export async function GET(_req: Request, { params }: Params) {
     answers = rawAnswers ?? []
   }
 
-  return NextResponse.json({ app, screenResult: sr, answers })
+  return NextResponse.json({ app, screenResult: sr, answers, onboardingItems: onboardingItems ?? [] })
 }

@@ -4,6 +4,8 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import SettingsClient from '@/components/admin/settings/SettingsClient'
 import VapiAssistantConfig from '@/components/admin/settings/VapiAssistantConfig'
+import OnboardingChecklistSettings from '@/components/admin/settings/OnboardingChecklistSettings'
+import InterviewQuestionsSettings from '@/components/admin/settings/InterviewQuestionsSettings'
 import { DEFAULT_VAPI_CONFIG, type VapiAssistantConfig as VapiConfig } from '@/lib/types/vapi'
 import { getCompanyConfig } from '@/lib/db/companies'
 
@@ -115,6 +117,20 @@ export default async function SettingsPage({
       <div className="mb-5">
         <VapiAssistantConfig initialConfig={vapiConfig} assistantId={vapiAssistantId} />
       </div>
+
+      {/* Interview Questions */}
+      {role !== 'location_manager' && (
+        <div className="mb-5">
+          <InterviewQuestionsSettings />
+        </div>
+      )}
+
+      {/* Onboarding Checklist */}
+      {role !== 'location_manager' && (
+        <div className="mb-5">
+          <OnboardingChecklistSettings />
+        </div>
+      )}
 
       <SettingsClient
         userId={user.id}
