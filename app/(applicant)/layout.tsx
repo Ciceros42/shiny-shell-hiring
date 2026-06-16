@@ -33,9 +33,21 @@ export default async function ApplicantLayout({ children, params }: Props) {
     }
   } catch {}
 
+  // Extract font-family name from a Google Fonts URL: ?family=Poppins:wght@400 → 'Poppins'
+  let resolvedFontFamily = theme.fontFamily
+  if (theme.fontUrl) {
+    try {
+      const url = new URL(theme.fontUrl)
+      const family = url.searchParams.get('family')
+      if (family) resolvedFontFamily = `'${family.split(':')[0]}', sans-serif`
+    } catch {}
+  }
+  const resolvedTheme = { ...theme, fontFamily: resolvedFontFamily }
+
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#F4F5F7' }}>
-      <style>{`:root { ${themeToCSS(theme)} }`}</style>
+    <div className="min-h-screen" style={{ backgroundColor: '#F4F5F7', fontFamily: 'var(--brand-font)' }}>
+      {theme.fontUrl && <link rel="stylesheet" href={theme.fontUrl} />}
+      <style>{`:root { ${themeToCSS(resolvedTheme)} }`}</style>
 
       {/* Header */}
       <header

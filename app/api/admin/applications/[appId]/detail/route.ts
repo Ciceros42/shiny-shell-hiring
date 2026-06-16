@@ -18,7 +18,7 @@ export async function GET(_req: Request, { params }: Params) {
         applicants(id, name, phone, email, sms_opted_out),
         locations(id, name),
         jobs(id, title),
-        interviews(id, status, manager_rating, interview_slots(start_time))
+        interviews(id, status, manager_rating, notes, interviewer_score, interview_slots(start_time))
       `)
       .eq('id', appId)
       .eq('company_id', profile.companyId)

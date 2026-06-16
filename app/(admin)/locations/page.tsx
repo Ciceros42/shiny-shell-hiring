@@ -20,6 +20,12 @@ export default function LocationsPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editTimezone, setEditTimezone] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+
   useEffect(() => {
     fetch('/api/admin/company-locations').then((r) => r.json()).then(setLocations).finally(() => setLoading(false))
   }, [])
@@ -39,6 +45,43 @@ export default function LocationsPage() {
     setShowForm(false); setName(''); setTimezone('America/Denver')
     router.refresh()
     fetch('/api/admin/company-locations').then((r) => r.json()).then(setLocations)
+  }
+
+  function startEdit(loc: LocationRow) {
+    setEditingId(loc.id)
+    setEditName(loc.name)
+    setEditTimezone(loc.timezone)
+  }
+
+  async function saveEdit(loc: LocationRow) {
+    setSavingEdit(true)
+    const res = await fetch(`/api/admin/company-locations/${loc.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editName, timezone: editTimezone }),
+    })
+    if (res.ok) {
+      setLocations((prev) =>
+        prev.map((l) => l.id === loc.id ? { ...l, name: editName, timezone: editTimezone } : l)
+      )
+      setEditingId(null)
+    }
+    setSavingEdit(false)
+  }
+
+  async function toggleHiring(loc: LocationRow) {
+    setTogglingId(loc.id)
+    const res = await fetch(`/api/admin/company-locations/${loc.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isHiring: !loc.isHiring }),
+    })
+    if (res.ok) {
+      setLocations((prev) =>
+        prev.map((l) => l.id === loc.id ? { ...l, isHiring: !l.isHiring } : l)
+      )
+    }
+    setTogglingId(null)
   }
 
   const inputClass = 'w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none'
@@ -87,16 +130,57 @@ export default function LocationsPage() {
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <ul className="divide-y divide-gray-100">
             {locations.map((loc) => (
-              <li key={loc.id} className="flex items-center justify-between px-5 py-4 gap-4">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900">{loc.name}</p>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    {loc.timezone} · <span className="font-mono">/apply/…/{loc.slug}/</span>
-                  </p>
-                </div>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${loc.isHiring ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                  {loc.isHiring ? 'Hiring' : 'Not hiring'}
-                </span>
+              <li key={loc.id} className="px-5 py-4">
+                {editingId === loc.id ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Location name</label>
+                      <input className={inputClass} value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Timezone</label>
+                      <select className={inputClass + ' bg-white'} value={editTimezone} onChange={(e) => setEditTimezone(e.target.value)}>
+                        {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => saveEdit(loc)} disabled={savingEdit || !editName.trim()} className="rounded px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50" style={{ backgroundColor: 'var(--brand-primary)' }}>
+                        {savingEdit ? 'Saving…' : 'Save'}
+                      </button>
+                      <button onClick={() => setEditingId(null)} className="rounded px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-900">{loc.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {loc.timezone} · <span className="font-mono">/apply/…/{loc.slug}/</span>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button
+                        onClick={() => startEdit(loc)}
+                        className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => toggleHiring(loc)}
+                        disabled={togglingId === loc.id}
+                        className={`text-xs px-3 py-1 rounded-full font-medium transition-colors disabled:opacity-50 ${
+                          loc.isHiring
+                            ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                      >
+                        {loc.isHiring ? 'Hiring' : 'Not hiring'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

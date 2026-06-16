@@ -20,6 +20,15 @@ interface ScreenResult {
   manager_briefing: string | null
 }
 
+interface InterviewDetail {
+  id: string
+  status: string
+  manager_rating: number | null
+  notes: string | null
+  interviewer_score: number | null
+  interview_slots: { start_time: string } | null
+}
+
 interface DetailData {
   app: {
     id: string
@@ -28,12 +37,7 @@ interface DetailData {
     applicants: { id: string; name: string; phone: string; email: string | null; sms_opted_out: boolean } | null
     locations: { id: string; name: string } | null
     jobs: { id: string; title: string } | null
-    interviews: Array<{
-      id: string
-      status: string
-      manager_rating: number | null
-      interview_slots: { start_time: string } | null
-    }>
+    interviews: Array<InterviewDetail>
   }
   screenResult: ScreenResult | null
   answers: Answer[]
@@ -46,6 +50,8 @@ interface Props {
   onClose: () => void
   onAdvance: (id: string) => void
   onReject: (id: string) => void
+  onHire: (id: string) => void
+  onMarkInterviewed: (id: string) => void
   actionLoading: boolean
 }
 
@@ -69,23 +75,50 @@ function ScoreBar({ score, max = 100 }: { score: number; max?: number }) {
   )
 }
 
-export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAdvance, onReject, actionLoading }: Props) {
+export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAdvance, onReject, onHire, onMarkInterviewed, actionLoading }: Props) {
   const [detail, setDetail] = useState<DetailData | null>(null)
   const [loading, setLoading] = useState(false)
   const [fetchError, setFetchError] = useState<string | null>(null)
   const [retryCount, setRetryCount] = useState(0)
+  const [editNotes, setEditNotes] = useState('')
+  const [editScore, setEditScore] = useState<number | null>(null)
+  const [savingNotes, setSavingNotes] = useState(false)
+  const [notesSaved, setNotesSaved] = useState(false)
 
   useEffect(() => {
     if (!appId) { setDetail(null); return }
     setLoading(true)
     setDetail(null)
     setFetchError(null)
+    setNotesSaved(false)
     fetch(`/api/admin/applications/${appId}/detail`)
       .then((r) => r.json())
-      .then((d) => setDetail(d))
+      .then((d) => {
+        setDetail(d)
+        const latestInterview = d.app?.interviews?.[0]
+        if (latestInterview) {
+          setEditNotes(latestInterview.notes ?? '')
+          setEditScore(latestInterview.interviewer_score ?? null)
+        } else {
+          setEditNotes('')
+          setEditScore(null)
+        }
+      })
       .catch((err) => { setFetchError(String(err)); setLoading(false) })
       .finally(() => setLoading(false))
   }, [appId, retryCount])
+
+  async function saveInterviewNotes(interviewId: string) {
+    setSavingNotes(true)
+    setNotesSaved(false)
+    await fetch(`/api/admin/interviews/${interviewId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: editNotes || null, interviewer_score: editScore }),
+    })
+    setSavingNotes(false)
+    setNotesSaved(true)
+  }
 
   const open = !!appId
 
@@ -251,18 +284,58 @@ export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAd
                 <section>
                   <h3 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: 'var(--brand-primary)' }}>Interview</h3>
                   {detail.app.interviews.map((interview) => (
-                    <div key={interview.id} className="bg-gray-50 rounded-lg p-3 text-sm">
+                    <div key={interview.id} className="bg-gray-50 rounded-lg p-4 space-y-3 text-sm">
                       <div className="flex items-center justify-between">
                         <span className="text-gray-600 capitalize">{interview.status}</span>
-                        {interview.manager_rating !== null && (
-                          <span className="font-medium text-gray-800">Rating: {interview.manager_rating}/5</span>
+                        {interview.interview_slots?.start_time && (
+                          <span className="text-xs text-gray-400">
+                            {new Date(interview.interview_slots.start_time).toLocaleString()}
+                          </span>
                         )}
                       </div>
-                      {interview.interview_slots?.start_time && (
-                        <p className="text-xs text-gray-400 mt-1">
-                          {new Date(interview.interview_slots.start_time).toLocaleString()}
-                        </p>
-                      )}
+
+                      {/* Score (1–5 stars) */}
+                      <div>
+                        <p className="text-xs text-gray-400 mb-1.5">Interviewer score</p>
+                        <div className="flex gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              onClick={() => setEditScore(editScore === star ? null : star)}
+                              className="text-xl leading-none transition-colors"
+                              style={{ color: editScore !== null && star <= editScore ? '#F59E0B' : '#D1D5DB' }}
+                            >
+                              ★
+                            </button>
+                          ))}
+                          {editScore !== null && (
+                            <span className="text-xs text-gray-400 self-center ml-1">{editScore}/5</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Notes */}
+                      <div>
+                        <p className="text-xs text-gray-400 mb-1">Notes</p>
+                        <textarea
+                          value={editNotes}
+                          onChange={(e) => { setEditNotes(e.target.value); setNotesSaved(false) }}
+                          rows={3}
+                          placeholder="How did the interview go? Strengths, concerns…"
+                          className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none resize-none"
+                        />
+                        <div className="flex items-center gap-3 mt-1.5">
+                          <button
+                            onClick={() => saveInterviewNotes(interview.id)}
+                            disabled={savingNotes}
+                            className="text-xs font-medium text-white px-3 py-1.5 rounded disabled:opacity-50"
+                            style={{ backgroundColor: 'var(--brand-primary)' }}
+                          >
+                            {savingNotes ? 'Saving…' : 'Save notes'}
+                          </button>
+                          {notesSaved && <span className="text-xs text-green-600">Saved</span>}
+                        </div>
+                      </div>
                     </div>
                   ))}
                 </section>
@@ -280,6 +353,37 @@ export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAd
               className="flex-1 rounded-md py-2.5 text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
             >
               {actionLoading ? 'Processing…' : '✓ Advance to Interview'}
+            </button>
+            <button
+              onClick={() => onReject(app.id)}
+              disabled={actionLoading}
+              className="flex-1 rounded-md py-2.5 text-sm font-semibold bg-red-500 text-white hover:bg-red-600 disabled:opacity-50 transition-colors"
+            >
+              ✗ Reject
+            </button>
+          </div>
+        )}
+        {app && app.status === 'scheduled' && (
+          <div className="shrink-0 border-t border-gray-200 p-4">
+            <button
+              onClick={() => onMarkInterviewed(app.id)}
+              disabled={actionLoading}
+              className="w-full rounded-md py-2.5 text-sm font-semibold text-white disabled:opacity-50 transition-colors"
+              style={{ backgroundColor: '#8B5CF6' }}
+            >
+              {actionLoading ? 'Processing…' : 'Mark as Interviewed'}
+            </button>
+          </div>
+        )}
+        {app && app.status === 'interviewed' && (
+          <div className="shrink-0 border-t border-gray-200 p-4 flex gap-3">
+            <button
+              onClick={() => onHire(app.id)}
+              disabled={actionLoading}
+              className="flex-1 rounded-md py-2.5 text-sm font-semibold text-white disabled:opacity-50 transition-colors"
+              style={{ backgroundColor: '#059669' }}
+            >
+              {actionLoading ? 'Processing…' : '✓ Hire'}
             </button>
             <button
               onClick={() => onReject(app.id)}

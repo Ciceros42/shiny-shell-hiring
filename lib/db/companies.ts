@@ -47,6 +47,7 @@ function mergeTheme(name: string, stored: Record<string, unknown>): CompanyTheme
     primaryForeground: (stored.primaryForeground as string) ?? DEFAULT_THEME.primaryForeground,
     primaryMuted: (stored.primaryMuted as string) ?? DEFAULT_THEME.primaryMuted,
     fontFamily: (stored.fontFamily as string) ?? DEFAULT_THEME.fontFamily,
+    fontUrl: (stored.fontUrl as string | null) ?? null,
     logoUrl: (stored.logoUrl as string | null) ?? null,
     borderRadius: (stored.borderRadius as string) ?? DEFAULT_THEME.borderRadius,
   }

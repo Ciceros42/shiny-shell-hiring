@@ -38,6 +38,7 @@ export default function VapiAssistantConfig({ initialConfig, assistantId: initia
   const [assistantId, setAssistantId] = useState<string | null>(initialAssistantId)
   const [state, setState] = useState<'idle' | 'deploying' | 'done' | 'error'>('idle')
   const [errMsg, setErrMsg] = useState<string | null>(null)
+  const [open, setOpen] = useState(!initialAssistantId)
 
   function set<K extends keyof VapiAssistantConfig>(key: K, value: VapiAssistantConfig[K]) {
     setConfig((c) => ({ ...c, [key]: value }))
@@ -62,16 +63,31 @@ export default function VapiAssistantConfig({ initialConfig, assistantId: initia
   }
 
   return (
-    <div className="space-y-0">
-      {/* Status bar */}
-      <div className="flex items-center justify-between mb-4">
-        <div className="flex items-center gap-2">
-          <span className={`inline-block h-2 w-2 rounded-full ${assistantId ? 'bg-green-400' : 'bg-gray-300'}`} />
-          <span className="text-xs text-gray-500">
-            {assistantId ? `Deployed · ID ${assistantId.slice(0, 8)}…` : 'Not yet deployed'}
-          </span>
+    <div className="rounded-lg border border-gray-200 bg-white overflow-hidden">
+      {/* Accordion header */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <span className={`inline-block h-2 w-2 rounded-full shrink-0 ${assistantId ? 'bg-green-400' : 'bg-gray-300'}`} />
+          <div className="text-left">
+            <p className="text-sm font-semibold text-gray-900">AI Screening Assistant</p>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {assistantId ? `Deployed · ID ${assistantId.slice(0, 8)}…` : 'Not yet deployed — click to configure'}
+            </p>
+          </div>
         </div>
-      </div>
+        <svg
+          className={`h-4 w-4 text-gray-400 transition-transform shrink-0 ${open ? 'rotate-180' : ''}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+      <div className="border-t border-gray-100 px-5 py-5 space-y-0">
 
       {/* Persona section */}
       <div className="rounded-md border border-gray-200 bg-white divide-y divide-gray-100 mb-4">
@@ -226,6 +242,8 @@ export default function VapiAssistantConfig({ initialConfig, assistantId: initia
             : 'Deploy Assistant to Vapi'}
         </button>
       </div>
+      </div>
+      )}
     </div>
   )
 }

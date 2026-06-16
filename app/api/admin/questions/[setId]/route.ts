@@ -35,3 +35,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ setId:
   if (dbError) return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
+
+export async function DELETE(_req: Request, { params }: { params: Promise<{ setId: string }> }) {
+  const { profile, error } = await requireAdmin()
+  if (error) return error
+
+  const { setId } = await params
+
+  const { error: dbError } = await adminDb
+    .from('question_sets')
+    .delete()
+    .eq('id', setId)
+    .eq('company_id', profile.companyId)
+
+  if (dbError) return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}

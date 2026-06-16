@@ -1,5 +1,4 @@
 import Link from 'next/link'
-import { redirect } from 'next/navigation'
 import { getLocationBySlug } from '@/lib/db/locations'
 import { getActiveJobsForLocation } from '@/lib/db/jobs'
 
@@ -48,11 +47,6 @@ export default async function LocationLandingPage({ params }: Props) {
         <p className="text-gray-600">No positions are currently open. Check back soon!</p>
       </div>
     )
-  }
-
-  // Single job — skip the picker and go straight to the form
-  if (jobs.length === 1) {
-    redirect(`/apply/${companySlug}/${locationSlug}/${jobs[0].slug}`)
   }
 
   return (

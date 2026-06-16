@@ -42,9 +42,16 @@ export default function CalendarManager({
   const searchParams = useSearchParams()
   const [slots, setSlots] = useState<SlotRow[]>(initialSlots)
   const [showForm, setShowForm] = useState(false)
+  const [formMode, setFormMode] = useState<'single' | 'bulk'>('single')
   const [date, setDate] = useState('')
   const [time, setTime] = useState('09:00')
   const [duration, setDuration] = useState(30)
+  // bulk mode
+  const [bulkDate, setBulkDate] = useState('')
+  const [bulkStart, setBulkStart] = useState('09:00')
+  const [bulkEnd, setBulkEnd] = useState('17:00')
+  const [bulkInterval, setBulkInterval] = useState(30)
+  const [bulkDuration, setBulkDuration] = useState(30)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -71,6 +78,23 @@ export default function CalendarManager({
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b))
   }, [slots, timezone])
+
+  function buildBulkSlots(): { start: Date; end: Date }[] {
+    if (!bulkDate || !bulkStart || !bulkEnd) return []
+    const [sh, sm] = bulkStart.split(':').map(Number)
+    const [eh, em] = bulkEnd.split(':').map(Number)
+    const startMinutes = sh * 60 + sm
+    const endMinutes = eh * 60 + em
+    if (endMinutes <= startMinutes) return []
+    const slots: { start: Date; end: Date }[] = []
+    for (let m = startMinutes; m + bulkDuration <= endMinutes; m += bulkInterval) {
+      const start = new Date(`${bulkDate}T00:00:00`)
+      start.setMinutes(m)
+      const end = new Date(start.getTime() + bulkDuration * 60 * 1000)
+      slots.push({ start, end })
+    }
+    return slots
+  }
 
   async function addSlot() {
     if (!date || !time) { setError('Date and time are required'); return }
@@ -101,6 +125,37 @@ export default function CalendarManager({
     setSlots((s) => [...s, newSlot].sort((a, b) => a.start_time.localeCompare(b.start_time)))
     setShowForm(false)
     setDate('')
+    router.refresh()
+  }
+
+  async function addBulkSlots() {
+    const toAdd = buildBulkSlots()
+    if (toAdd.length === 0) { setError('No slots to add — check your times'); return }
+    setError(null)
+    setSaving(true)
+
+    const newSlots: SlotRow[] = []
+    for (const slot of toAdd) {
+      const res = await fetch('/api/admin/slots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location_id: locationId,
+          start_time: slot.start.toISOString(),
+          end_time: slot.end.toISOString(),
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        newSlots.push(data)
+      }
+    }
+
+    setSaving(false)
+    if (newSlots.length === 0) { setError('Failed to add slots'); return }
+    setSlots((s) => [...s, ...newSlots].sort((a, b) => a.start_time.localeCompare(b.start_time)))
+    setShowForm(false)
+    setBulkDate('')
     router.refresh()
   }
 
@@ -213,60 +268,106 @@ export default function CalendarManager({
           {availableCount} available slot{availableCount !== 1 ? 's' : ''} in the next 28 days
         </p>
         <button
-          onClick={() => { setShowForm((v) => !v); setError(null) }}
+          onClick={() => { setShowForm((v) => !v); setError(null); setFormMode('single') }}
           className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
         >
-          {showForm ? 'Cancel' : '+ Add Slot'}
+          {showForm ? 'Cancel' : '+ Add Slots'}
         </button>
       </div>
 
       {/* Add slot form */}
       {showForm && (
         <div className="bg-white rounded-lg border border-blue-300 p-5 mb-5">
-          <h3 className="text-sm font-semibold text-gray-700 mb-4">New Interview Slot</h3>
-          <div className="flex flex-wrap gap-4 items-end">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
-              <input
-                type="date"
-                value={date}
-                min={todayStr}
-                onChange={(e) => setDate(e.target.value)}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Start Time</label>
-              <input
-                type="time"
-                value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Duration</label>
-              <select
-                value={duration}
-                onChange={(e) => setDuration(Number(e.target.value))}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          {/* Mode tabs */}
+          <div className="flex gap-1 mb-4 border-b border-gray-100 pb-3">
+            {(['single', 'bulk'] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => { setFormMode(m); setError(null) }}
+                className={`px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                  formMode === m ? 'text-white' : 'text-gray-500 hover:bg-gray-100'
+                }`}
+                style={formMode === m ? { backgroundColor: 'var(--ui-accent)' } : {}}
               >
-                {DURATIONS.map((d) => (
-                  <option key={d.minutes} value={d.minutes}>{d.label}</option>
-                ))}
-              </select>
-            </div>
-            <button
-              onClick={addSlot}
-              disabled={saving}
-              className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {saving ? 'Adding…' : 'Add'}
-            </button>
+                {m === 'single' ? 'Single slot' : 'Multiple slots'}
+              </button>
+            ))}
           </div>
+
+          {formMode === 'single' ? (
+            <>
+              <div className="flex flex-wrap gap-4 items-end">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+                  <input type="date" value={date} min={todayStr} onChange={(e) => setDate(e.target.value)}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Start time</label>
+                  <input type="time" value={time} onChange={(e) => setTime(e.target.value)}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Duration</label>
+                  <select value={duration} onChange={(e) => setDuration(Number(e.target.value))}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none">
+                    {DURATIONS.map((d) => <option key={d.minutes} value={d.minutes}>{d.label}</option>)}
+                  </select>
+                </div>
+                <button onClick={addSlot} disabled={saving}
+                  className="rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                  {saving ? 'Adding…' : 'Add'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-4 items-end">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Date</label>
+                  <input type="date" value={bulkDate} min={todayStr} onChange={(e) => setBulkDate(e.target.value)}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">From</label>
+                  <input type="time" value={bulkStart} onChange={(e) => setBulkStart(e.target.value)}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Until</label>
+                  <input type="time" value={bulkEnd} onChange={(e) => setBulkEnd(e.target.value)}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Every</label>
+                  <select value={bulkInterval} onChange={(e) => setBulkInterval(Number(e.target.value))}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none">
+                    {DURATIONS.map((d) => <option key={d.minutes} value={d.minutes}>{d.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Slot duration</label>
+                  <select value={bulkDuration} onChange={(e) => setBulkDuration(Number(e.target.value))}
+                    className="rounded-md border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none">
+                    {DURATIONS.map((d) => <option key={d.minutes} value={d.minutes}>{d.label}</option>)}
+                  </select>
+                </div>
+              </div>
+              {bulkDate && bulkStart && bulkEnd && (
+                <p className="mt-3 text-xs text-gray-500">
+                  {(() => { const n = buildBulkSlots().length; return n > 0 ? `Will create ${n} slot${n !== 1 ? 's' : ''}` : 'No slots — end time must be after start time' })()}
+                </p>
+              )}
+              <button onClick={addBulkSlots} disabled={saving || buildBulkSlots().length === 0}
+                className="mt-3 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50">
+                {saving ? 'Adding…' : `Add ${buildBulkSlots().length} slots`}
+              </button>
+            </>
+          )}
+
           {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
           <p className="mt-2 text-xs text-gray-400">
-            Times are in your browser's local timezone. Candidates see slots converted to their own timezone.
+            Times are in your browser's local timezone.
           </p>
         </div>
       )}

@@ -4,6 +4,7 @@ export interface CompanyTheme {
   primaryForeground: string
   primaryMuted: string
   fontFamily: string
+  fontUrl: string | null
   logoUrl: string | null
   borderRadius: string
 }
@@ -14,6 +15,7 @@ export const DEFAULT_THEME: CompanyTheme = {
   primaryForeground: '#ffffff',
   primaryMuted: 'rgba(255,255,255,0.7)',
   fontFamily: "'Gotham', Arial, sans-serif",
+  fontUrl: null,
   logoUrl: null,
   borderRadius: '0.375rem',
 }

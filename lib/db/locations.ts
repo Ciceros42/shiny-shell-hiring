@@ -69,6 +69,24 @@ export async function createLocation(companyId: string, name: string, timezone: 
   return data.id
 }
 
+export async function updateLocation(
+  id: string,
+  companyId: string,
+  fields: { name?: string; timezone?: string; isHiring?: boolean }
+): Promise<void> {
+  const update: Record<string, unknown> = {}
+  if (fields.name !== undefined) update.name = fields.name
+  if (fields.timezone !== undefined) update.timezone = fields.timezone
+  if (fields.isHiring !== undefined) update.is_hiring = fields.isHiring
+  if (Object.keys(update).length === 0) return
+  const { error } = await adminDb
+    .from('locations')
+    .update(update)
+    .eq('id', id)
+    .eq('company_id', companyId)
+  if (error) throw new Error(error.message)
+}
+
 export async function listLocations(companyId?: string): Promise<{ id: string; companyId: string; name: string; slug: string; timezone: string; isHiring: boolean }[]> {
   let query = adminDb.from('locations').select('id, company_id, name, slug, timezone, is_hiring').order('name', { ascending: true })
   if (companyId) query = query.eq('company_id', companyId)

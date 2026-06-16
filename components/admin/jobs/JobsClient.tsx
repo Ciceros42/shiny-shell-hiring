@@ -56,6 +56,11 @@ export default function JobsClient({
   const [showForm, setShowForm] = useState(false)
   const [creating, setCreating] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [editingJobId, setEditingJobId] = useState<string | null>(null)
+  const [editTitle, setEditTitle] = useState('')
+  const [editDesc, setEditDesc] = useState('')
+  const [editSetId, setEditSetId] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
 
   const [newTitle, setNewTitle] = useState('')
   const [newDesc, setNewDesc] = useState('')
@@ -105,6 +110,38 @@ export default function JobsClient({
       setFormError('Failed to update hiring status. Please try again.')
     }
     setTogglingId(null)
+  }
+
+  function startEdit(job: JobRow) {
+    setEditingJobId(job.id)
+    setEditTitle(job.title)
+    setEditDesc(job.description ?? '')
+    setEditSetId(job.question_set_id ?? '')
+    setExpandedLocationJob(null)
+  }
+
+  async function saveEdit(jobId: string) {
+    setSavingEdit(true)
+    const res = await fetch(`/api/admin/jobs/${jobId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: editTitle,
+        description: editDesc,
+        question_set_id: editSetId || null,
+      }),
+    })
+    if (res.ok) {
+      setJobs((prev) =>
+        prev.map((j) =>
+          j.id === jobId
+            ? { ...j, title: editTitle, description: editDesc || null, question_set_id: editSetId || null }
+            : j
+        )
+      )
+      setEditingJobId(null)
+    }
+    setSavingEdit(false)
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -157,81 +194,121 @@ export default function JobsClient({
             const isLocationExpanded = expandedLocationJob === job.id
             return (
               <li key={job.id} className="px-5 py-4">
-                <div className="flex items-center justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium text-gray-900 truncate">{job.title}</p>
-                      {!job.is_active && (
-                        <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full shrink-0">
-                          inactive
-                        </span>
-                      )}
+                {editingJobId === job.id ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Job title</label>
+                      <input className={inputClass} value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
                     </div>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {setName ? `Questions: ${setName}` : 'No question set'} ·{' '}
-                      <span className="font-mono">/apply/{companySlug}/…/{job.slug}</span>
-                    </p>
-                    {job.description && (
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">{job.description}</p>
-                    )}
-                    {/* Application form assignment */}
-                    <div className="flex items-center gap-1.5 mt-1.5">
-                      <span className="text-xs text-gray-400">Application:</span>
-                      <select
-                        value={job.application_form_id ?? ''}
-                        onChange={(e) => assignForm(job, e.target.value || null)}
-                        disabled={assigningFormId === job.id}
-                        className="text-xs rounded border border-gray-200 px-1.5 py-0.5 bg-white text-gray-700 focus:outline-none focus:border-gray-400 disabled:opacity-50"
-                      >
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+                      <textarea className={inputClass + ' resize-none'} rows={2} value={editDesc} onChange={(e) => setEditDesc(e.target.value)} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Question set</label>
+                      <select className={inputClass + ' bg-white'} value={editSetId} onChange={(e) => setEditSetId(e.target.value)}>
                         <option value="">— None —</option>
-                        {applicationForms.map((f) => (
-                          <option key={f.id} value={f.id}>{f.name}</option>
+                        {questionSets.map((s) => (
+                          <option key={s.id} value={s.id}>{s.job_title}</option>
                         ))}
                       </select>
-                      {assignedForm && (
-                        <span className="text-xs text-green-600">✓</span>
-                      )}
                     </div>
-                    {/* Location assignment */}
-                    {locationOptions.length > 0 && (
-                      <div className="mt-1.5">
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => saveEdit(job.id)} disabled={savingEdit || !editTitle.trim()} className="rounded px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50" style={{ backgroundColor: 'var(--brand-primary)' }}>
+                        {savingEdit ? 'Saving…' : 'Save'}
+                      </button>
+                      <button onClick={() => setEditingJobId(null)} className="rounded px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="flex items-center justify-between gap-4">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-gray-900 truncate">{job.title}</p>
+                          {!job.is_active && (
+                            <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full shrink-0">
+                              inactive
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {setName ? `Questions: ${setName}` : 'No question set'} ·{' '}
+                          <span className="font-mono">/apply/{companySlug}/…/{job.slug}</span>
+                        </p>
+                        {job.description && (
+                          <p className="text-xs text-gray-500 mt-0.5 truncate">{job.description}</p>
+                        )}
+                        {/* Application form assignment */}
+                        <div className="flex items-center gap-1.5 mt-1.5">
+                          <span className="text-xs text-gray-400">Application:</span>
+                          <select
+                            value={job.application_form_id ?? ''}
+                            onChange={(e) => assignForm(job, e.target.value || null)}
+                            disabled={assigningFormId === job.id}
+                            className="text-xs rounded border border-gray-200 px-1.5 py-0.5 bg-white text-gray-700 focus:outline-none focus:border-gray-400 disabled:opacity-50"
+                          >
+                            <option value="">— None —</option>
+                            {applicationForms.map((f) => (
+                              <option key={f.id} value={f.id}>{f.name}</option>
+                            ))}
+                          </select>
+                          {assignedForm && (
+                            <span className="text-xs text-green-600">✓</span>
+                          )}
+                        </div>
+                        {/* Location assignment */}
+                        {locationOptions.length > 0 && (
+                          <div className="mt-1.5">
+                            <button
+                              onClick={() => setExpandedLocationJob(isLocationExpanded ? null : job.id)}
+                              className="text-xs text-gray-500 hover:text-gray-700 underline-offset-2 hover:underline"
+                            >
+                              {assignedLocationIds.length === 0
+                                ? 'Locations: all (click to restrict)'
+                                : `Locations: ${assignedLocationIds.map((lid) => locationOptions.find((l) => l.id === lid)?.name ?? lid).join(', ')}`}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 shrink-0">
                         <button
-                          onClick={() => setExpandedLocationJob(isLocationExpanded ? null : job.id)}
-                          className="text-xs text-gray-500 hover:text-gray-700 underline-offset-2 hover:underline"
+                          onClick={() => startEdit(job)}
+                          className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
                         >
-                          {assignedLocationIds.length === 0
-                            ? 'Locations: all (click to restrict)'
-                            : `Locations: ${assignedLocationIds.map((lid) => locationOptions.find((l) => l.id === lid)?.name ?? lid).join(', ')}`}
+                          Edit
+                        </button>
+                        <button
+                          role="switch"
+                          aria-checked={job.is_active}
+                          onClick={() => toggleActive(job)}
+                          disabled={togglingId === job.id}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
+                            job.is_active ? 'bg-green-500' : 'bg-gray-300'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                              job.is_active ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                          />
                         </button>
                       </div>
-                    )}
-                  </div>
-                  <button
-                    role="switch"
-                    aria-checked={job.is_active}
-                    onClick={() => toggleActive(job)}
-                    disabled={togglingId === job.id}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors shrink-0 focus:outline-none disabled:opacity-50 ${
-                      job.is_active ? 'bg-green-500' : 'bg-gray-300'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-                        job.is_active ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
+                    </div>
 
-                {/* Location picker — inline expandable */}
-                {isLocationExpanded && (
-                  <LocationPicker
-                    locations={locationOptions}
-                    selected={assignedLocationIds}
-                    saving={savingLocationsFor === job.id}
-                    onSave={(ids) => saveLocations(job.id, ids)}
-                    onCancel={() => setExpandedLocationJob(null)}
-                  />
+                    {/* Location picker — inline expandable */}
+                    {isLocationExpanded && (
+                      <LocationPicker
+                        locations={locationOptions}
+                        selected={assignedLocationIds}
+                        saving={savingLocationsFor === job.id}
+                        onSave={(ids) => saveLocations(job.id, ids)}
+                        onCancel={() => setExpandedLocationJob(null)}
+                      />
+                    )}
+                  </>
                 )}
               </li>
             )

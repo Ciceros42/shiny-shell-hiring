@@ -66,7 +66,7 @@ export async function advanceApplicant(applicationId: string, companyId: string)
 export async function rejectApplicant(applicationId: string, companyId: string): Promise<void> {
   const { data: app } = await adminDb
     .from('applications')
-    .select('id')
+    .select('applicant_id, location_id, applicants(phone, email, name, sms_opted_out), locations(timezone)')
     .eq('id', applicationId)
     .eq('company_id', companyId)
     .single()
@@ -74,4 +74,21 @@ export async function rejectApplicant(applicationId: string, companyId: string):
   if (!app) throw new Error('Application not found')
 
   await updateApplicationStatus(applicationId, 'rejected')
+
+  try {
+    const applicant = app.applicants as unknown as { phone: string; email: string | null; name: string; sms_opted_out: boolean } | null
+    const location = app.locations as unknown as { timezone: string } | null
+    if (!applicant || !location) return
+
+    const { displayName: companyName } = await getCompanyConfig(companyId)
+    const useEmail = applicant.sms_opted_out && !!applicant.email
+    if (useEmail) {
+      const { sendFailEmail } = await import('@/lib/email/send')
+      await sendFailEmail({ to: applicant.email!, name: applicant.name, companyName })
+    } else {
+      await sendSMS(applicant.phone, SMS.fail(companyName), applicationId, 'fail', location.timezone, { bypassQuietHours: true })
+    }
+  } catch {
+    // Notification failure should not block the rejection
+  }
 }

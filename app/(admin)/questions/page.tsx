@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/auth/require-admin'
 import { adminDb } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import NewSetButton from '@/components/admin/questions/NewSetButton'
+import DeleteSetButton from '@/components/admin/questions/DeleteSetButton'
 
 export const revalidate = 0
 
@@ -58,6 +59,7 @@ export default async function QuestionsPage() {
                       active
                     </span>
                   )}
+                  <DeleteSetButton setId={set.id} />
                   <span className="text-gray-400 text-sm">→</span>
                 </div>
               </Link>

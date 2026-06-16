@@ -20,6 +20,8 @@ type Props = {
   managerLocation: LocationRow | null
   role: string
   pipelineMode: 'suggestion' | 'assistant'
+  fontUrl: string | null
+  fontFamily: string | null
 }
 
 export default function SettingsClient({
@@ -30,6 +32,8 @@ export default function SettingsClient({
   managerLocation,
   role,
   pipelineMode: initialPipelineMode,
+  fontUrl: initialFontUrl,
+  fontFamily: initialFontFamily,
 }: Props) {
   const router = useRouter()
 
@@ -47,6 +51,9 @@ export default function SettingsClient({
   const [error, setError] = useState<string | null>(null)
   const [pipelineMode, setPipelineMode] = useState<'suggestion' | 'assistant'>(initialPipelineMode)
   const [savingMode, setSavingMode] = useState(false)
+  const [fontUrl, setFontUrl] = useState(initialFontUrl ?? '')
+  const [savingFont, setSavingFont] = useState(false)
+  const [fontSaved, setFontSaved] = useState(false)
 
   async function toggleHiring(locationId: string) {
     const newValue = !hiringStates[locationId]
@@ -63,6 +70,19 @@ export default function SettingsClient({
     if (!res.ok) { setError('Failed to update location'); return }
     setHiringStates((s) => ({ ...s, [locationId]: newValue }))
     router.refresh()
+  }
+
+  async function saveFont() {
+    setSavingFont(true)
+    setFontSaved(false)
+    const res = await fetch('/api/admin/settings/theme', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fontUrl: fontUrl.trim() || null }),
+    })
+    setSavingFont(false)
+    if (res.ok) { setFontSaved(true); router.refresh() }
+    else setError('Failed to save font')
   }
 
   async function savePipelineMode(mode: 'suggestion' | 'assistant') {
@@ -198,6 +218,43 @@ export default function SettingsClient({
           When not hiring, the apply form at /apply/{editableLocations[0]?.slug ?? '…'} will show a "not currently hiring" message.
         </p>
       </section>
+
+      {/* Brand Font */}
+      {role === 'company_admin' && (
+        <section className="bg-white rounded-lg border border-gray-200 p-5">
+          <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-1">Brand Font</h2>
+          <p className="text-xs text-gray-400 mb-4">
+            Paste a Google Fonts embed URL (e.g. <span className="font-mono">https://fonts.googleapis.com/css2?family=Poppins:wght@400;600</span>). Applied to the applicant-facing apply and scheduling pages only.
+          </p>
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <input
+                value={fontUrl}
+                onChange={(e) => { setFontUrl(e.target.value); setFontSaved(false) }}
+                placeholder="https://fonts.googleapis.com/css2?family=…"
+                className="w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
+              />
+            </div>
+            <button
+              onClick={saveFont}
+              disabled={savingFont}
+              className="rounded-md px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 shrink-0"
+              style={{ backgroundColor: 'var(--brand-primary)' }}
+            >
+              {savingFont ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+          {fontSaved && <p className="mt-2 text-xs text-green-600">Font saved. Takes effect on the apply page immediately.</p>}
+          {fontUrl && (
+            <p className="mt-2 text-xs text-gray-400">
+              Current:{' '}
+              <span className="font-mono">{fontUrl.length > 60 ? fontUrl.slice(0, 60) + '…' : fontUrl}</span>
+              {' '}
+              <button onClick={() => { setFontUrl(''); saveFont() }} className="text-red-400 hover:text-red-600 ml-1">Remove</button>
+            </p>
+          )}
+        </section>
+      )}
 
       {/* Google Calendar */}
       <section className="bg-white rounded-lg border border-gray-200 p-5">

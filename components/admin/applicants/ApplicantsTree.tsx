@@ -43,8 +43,8 @@ const BUCKETS = [
     accentColor: '#14B8A6', accentBg: 'rgba(20,184,166,0.06)', badgeStyle: { backgroundColor: '#CCFBF1', color: '#134E4A' },
   },
   {
-    id: 'interviewed', label: 'Interviewed', statuses: ['interviewed'],
-    accentColor: '#8B5CF6', accentBg: 'rgba(139,92,246,0.06)', badgeStyle: { backgroundColor: '#EDE9FE', color: '#4C1D95' },
+    id: 'interviewed', label: 'Interview: Needs Decision', statuses: ['interviewed'], urgent: true,
+    accentColor: '#8B5CF6', accentBg: 'rgba(139,92,246,0.08)', badgeStyle: { backgroundColor: '#EDE9FE', color: '#4C1D95' },
   },
   {
     id: 'hired', label: 'Hired', statuses: ['hired'],
@@ -116,6 +116,32 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
       if (selectedAppId === appId) setSelectedAppId(null)
     } else {
       setActionError('Failed to reject applicant. Please try again.')
+    }
+    setActionLoading(prev => { const s = new Set(prev); s.delete(appId); return s })
+  }
+
+  async function handleHire(appId: string) {
+    setActionError(null)
+    setActionLoading(prev => new Set(prev).add(appId))
+    const res = await fetch(`/api/admin/applications/${appId}/hire`, { method: 'POST' })
+    if (res.ok) {
+      setApps((prev) => prev.map((a) => a.id === appId ? { ...a, status: 'hired' } : a))
+      if (selectedAppId === appId) setSelectedAppId(null)
+    } else {
+      setActionError('Failed to mark as hired. Please try again.')
+    }
+    setActionLoading(prev => { const s = new Set(prev); s.delete(appId); return s })
+  }
+
+  async function handleMarkInterviewed(appId: string) {
+    setActionError(null)
+    setActionLoading(prev => new Set(prev).add(appId))
+    const res = await fetch(`/api/admin/applications/${appId}/mark-interviewed`, { method: 'POST' })
+    if (res.ok) {
+      setApps((prev) => prev.map((a) => a.id === appId ? { ...a, status: 'interviewed' } : a))
+      if (selectedAppId === appId) setSelectedAppId(null)
+    } else {
+      setActionError('Failed to update status.')
     }
     setActionLoading(prev => { const s = new Set(prev); s.delete(appId); return s })
   }
@@ -310,6 +336,36 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
                               </button>
                             </>
                           )}
+                          {bucket.id === 'interviewed' && (
+                            <>
+                              <button
+                                onClick={() => handleHire(app.id)}
+                                disabled={isLoading(app.id)}
+                                className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors disabled:opacity-50"
+                                style={{ backgroundColor: '#059669' }}
+                              >
+                                Hire
+                              </button>
+                              <button
+                                onClick={() => handleReject(app.id)}
+                                disabled={isLoading(app.id)}
+                                className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors disabled:opacity-50"
+                                style={{ backgroundColor: '#dc2626' }}
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {bucket.id === 'scheduled' && (
+                            <button
+                              onClick={() => handleMarkInterviewed(app.id)}
+                              disabled={isLoading(app.id)}
+                              className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors disabled:opacity-50"
+                              style={{ backgroundColor: '#8B5CF6' }}
+                            >
+                              Interviewed
+                            </button>
+                          )}
                           <button
                             onClick={() => setSelectedAppId(app.id === selectedAppId ? null : app.id)}
                             className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-colors border"
@@ -349,6 +405,8 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
         onClose={() => setSelectedAppId(null)}
         onAdvance={handleAdvance}
         onReject={handleReject}
+        onHire={handleHire}
+        onMarkInterviewed={handleMarkInterviewed}
         actionLoading={isLoading(selectedApp?.id ?? '')}
       />
     </div>

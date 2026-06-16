@@ -112,15 +112,9 @@ export default async function SettingsPage({
       )}
 
       {/* Vapi AI Assistant */}
-      <section className="mb-5 rounded-xl border p-5" style={{ backgroundColor: 'var(--ui-card-bg)', borderColor: 'var(--ui-border)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-1" style={{ color: 'var(--ui-text-muted)' }}>
-          AI Screening Assistant
-        </p>
-        <p className="text-[12px] mb-5" style={{ color: 'var(--ui-text-muted)' }}>
-          Configure the AI that calls applicants for phone screening. Changes go live when you click Deploy.
-        </p>
+      <div className="mb-5">
         <VapiAssistantConfig initialConfig={vapiConfig} assistantId={vapiAssistantId} />
-      </section>
+      </div>
 
       <SettingsClient
         userId={user.id}
@@ -131,6 +125,8 @@ export default async function SettingsPage({
         managerLocation={managerLocation}
         role={role}
         pipelineMode={pipelineMode}
+        fontUrl={(config?.settings?.theme as Record<string, unknown> | undefined)?.fontUrl as string | null ?? null}
+        fontFamily={(config?.settings?.theme as Record<string, unknown> | undefined)?.fontFamily as string | null ?? null}
       />
     </div>
   )

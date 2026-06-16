@@ -53,6 +53,27 @@ export async function runReminders(): Promise<void> {
   await sendInterviewReminders()
   await sendManagerFitPrompts()
   await alertStuckScreening()
+  await transitionCompletedInterviews()
+}
+
+// Move applications from 'scheduled' → 'interviewed' once the interview slot end_time has passed.
+async function transitionCompletedInterviews(): Promise<void> {
+  const now = new Date().toISOString()
+
+  const { data: interviews } = await adminDb
+    .from('interviews')
+    .select('id, application_id, interview_slots!inner(end_time)')
+    .eq('status', 'scheduled')
+    .lt('interview_slots.end_time', now)
+
+  if (!interviews?.length) return
+
+  for (const iv of interviews) {
+    try {
+      await adminDb.from('applications').update({ status: 'interviewed' }).eq('id', iv.application_id).eq('status', 'scheduled')
+      await adminDb.from('interviews').update({ status: 'completed' }).eq('id', iv.id)
+    } catch {}
+  }
 }
 
 async function sendScreenLinkReminders(): Promise<void> {

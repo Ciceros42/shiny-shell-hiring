@@ -50,4 +50,7 @@ export const SMS = {
 
   disconnectedDuringScreen: (url: string, companyName = 'Shiny Shell') =>
     `Looks like we got disconnected during your ${companyName} screening. Tap here to pick up where you left off: ${url}`,
+
+  hired: (name: string, companyName = 'Shiny Shell Carwash') =>
+    `Congratulations ${name}! We'd love to have you join the team at ${companyName}. We'll be in touch shortly with next steps.`,
 }
