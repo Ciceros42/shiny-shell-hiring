@@ -9,12 +9,13 @@ interface Props {
   locationSlug: string
   jobSlug: string
   formQuestions?: AppFormQuestion[]
+  source?: string
 }
 
 const inputClass =
   'w-full rounded-xl border border-gray-200 px-4 text-[15px] text-gray-900 placeholder:text-gray-400 focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] transition-colors'
 
-export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuestions = [] }: Props) {
+export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuestions = [], source }: Props) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -73,6 +74,7 @@ export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuesti
           jobSlug,
           website,
           responses: Object.keys(responses).length > 0 ? responses : undefined,
+          source: source ?? undefined,
         }),
       })
 

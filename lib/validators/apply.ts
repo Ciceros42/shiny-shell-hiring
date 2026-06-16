@@ -9,7 +9,8 @@ export const ApplySchema = z.object({
   jobSlug: z.string().min(1),
   preferEmail: z.boolean().optional(),
   website: z.string().optional(), // honeypot
-  responses: z.record(z.string(), z.array(z.string())).optional(), // questionId -> selected option texts
+  responses: z.record(z.string(), z.array(z.string())).optional(),
+  source: z.string().max(50).optional(),
 })
 
 export type ApplyInput = z.infer<typeof ApplySchema>

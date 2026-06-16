@@ -16,6 +16,7 @@ import { sendScreenLinkEmail } from '@/lib/email/send'
 import { getApplicationFormForJob, saveApplicationResponses } from '@/lib/db/application-forms'
 import { getCompanyConfig } from '@/lib/db/companies'
 import { adminDb } from '@/lib/supabase/admin'
+import { makeStatusToken } from '@/lib/auth/status-token'
 
 export async function POST(req: Request) {
   const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { name, phone, email, companySlug, locationSlug, jobSlug, preferEmail, website, responses } = parsed.data
+  const { name, phone, email, companySlug, locationSlug, jobSlug, preferEmail, website, responses, source } = parsed.data
 
   // Honeypot — silently accept to avoid tipping off bots
   if (website) return NextResponse.json({ status: 'ok' })
@@ -129,7 +130,7 @@ export async function POST(req: Request) {
     jobId: job.id,
     questionSetId: job.questionSetId,
     status: 'applied',
-    source: 'direct',
+    source: source ?? 'direct',
   })
 
   // Save application form responses and check for hard-fail answers
@@ -180,13 +181,14 @@ export async function POST(req: Request) {
 
   const urgentShift = await getUrgentShiftLabel(location.id)
   const screenUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/screen/${tokenStr}`
+  const statusUrl = `${process.env.NEXT_PUBLIC_BASE_URL}/status/${application.id}?t=${makeStatusToken(application.id)}`
 
   if (smsOptedOut && email) {
     await sendScreenLinkEmail({ to: email, name, screenUrl, locationName: location.name, companyName })
   } else {
     await sendSMS(
       normalizedPhone,
-      SMS.screenLink(name, screenUrl, urgentShift, companyName),
+      SMS.screenLink(name, screenUrl, urgentShift, companyName, statusUrl),
       application.id,
       'screen_link',
       location.timezone,

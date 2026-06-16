@@ -87,13 +87,14 @@ export async function updateLocation(
   if (error) throw new Error(error.message)
 }
 
-export async function listLocations(companyId?: string): Promise<{ id: string; companyId: string; name: string; slug: string; timezone: string; isHiring: boolean }[]> {
-  let query = adminDb.from('locations').select('id, company_id, name, slug, timezone, is_hiring').order('name', { ascending: true })
+export async function listLocations(companyId?: string): Promise<{ id: string; companyId: string; companySlug: string; name: string; slug: string; timezone: string; isHiring: boolean }[]> {
+  let query = adminDb.from('locations').select('id, company_id, name, slug, timezone, is_hiring, companies(slug)').order('name', { ascending: true })
   if (companyId) query = query.eq('company_id', companyId)
   const { data } = await query
   return (data ?? []).map((row) => ({
     id: row.id,
     companyId: row.company_id,
+    companySlug: (row.companies as unknown as { slug: string } | null)?.slug ?? '',
     name: row.name,
     slug: row.slug,
     timezone: row.timezone,

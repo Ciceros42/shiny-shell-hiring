@@ -1,9 +1,10 @@
 const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL
 
 export const SMS = {
-  screenLink: (name: string, url: string, urgentShift?: string, companyName = 'Shiny Shell Carwash') => {
+  screenLink: (name: string, url: string, urgentShift?: string, companyName = 'Shiny Shell Carwash', statusUrl?: string) => {
     const shift = urgentShift ? ` We especially need help with ${urgentShift}.` : ''
-    return `Hi ${name}! Thanks for applying to ${companyName}.${shift} Click here to start your 3-minute phone screening (valid 24hrs): ${url}`
+    const status = statusUrl ? ` Track your status: ${statusUrl}` : ''
+    return `Hi ${name}! Thanks for applying to ${companyName}.${shift} Click here to start your 3-minute phone screening (valid 24hrs): ${url}${status}`
   },
 
   screenReminder: (url: string, companyName = 'Shiny Shell') =>

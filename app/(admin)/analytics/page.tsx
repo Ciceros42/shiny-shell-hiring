@@ -35,7 +35,7 @@ export default async function AnalyticsPage({
 
   let appQuery = adminDb
     .from('applications')
-    .select('status, created_at, id')
+    .select('status, created_at, id, source')
     .eq('company_id', companyId)
 
   if (role === 'location_manager' && locationId) {
@@ -62,6 +62,18 @@ export default async function AnalyticsPage({
 
   const topCount = reachedCounts['applied'] || 1
   const hiredCount = (allApps.filter((a) => a.status === 'hired')).length
+
+  // Source breakdown
+  const sourceCounts: Record<string, { total: number; hired: number }> = {}
+  for (const app of allApps) {
+    const src = (app.source as string | null) ?? 'direct'
+    if (!sourceCounts[src]) sourceCounts[src] = { total: 0, hired: 0 }
+    sourceCounts[src].total++
+    if (app.status === 'hired') sourceCounts[src].hired++
+  }
+  const sourceRows = Object.entries(sourceCounts)
+    .sort((a, b) => b[1].total - a[1].total)
+    .map(([source, counts]) => ({ source, ...counts }))
 
   let totalScreenCost = 0
   let totalSmsCost = 0
@@ -210,6 +222,40 @@ export default async function AnalyticsPage({
           Each row counts applicants who reached that stage or beyond. % is relative to the previous stage.
         </p>
       </div>
+
+      {/* Source breakdown */}
+      {sourceRows.length > 1 && (
+        <div
+          className="rounded-xl border p-6 mb-6"
+          style={{ backgroundColor: 'var(--ui-card-bg)', borderColor: 'var(--ui-border)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] mb-4" style={{ color: 'var(--ui-text-muted)' }}>
+            Application Sources
+          </p>
+          <div className="space-y-2.5">
+            {sourceRows.map(({ source, total, hired }) => {
+              const pct = topCount > 0 ? Math.round((total / topCount) * 100) : 0
+              const label = source === 'direct' ? 'Direct' : source === 'qr' ? 'QR Code' : source.charAt(0).toUpperCase() + source.slice(1)
+              return (
+                <div key={source} className="flex items-center gap-3">
+                  <div className="w-24 shrink-0 text-right">
+                    <span className="text-[12px] font-medium" style={{ color: 'var(--ui-text-secondary)' }}>{label}</span>
+                  </div>
+                  <div className="flex-1 h-5 rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--ui-content-bg)' }}>
+                    <div className="h-full rounded-lg" style={{ width: `${pct}%`, backgroundColor: 'var(--ui-accent)', opacity: 0.7 }} />
+                  </div>
+                  <div className="w-24 shrink-0 flex items-center gap-2 text-[12px]">
+                    <span className="font-bold" style={{ color: 'var(--ui-text-primary)' }}>{total}</span>
+                    {hired > 0 && (
+                      <span style={{ color: '#16a34a' }}>{hired} hired</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Drop-off */}
       <div

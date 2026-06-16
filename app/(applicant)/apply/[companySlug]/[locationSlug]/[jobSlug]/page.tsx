@@ -6,10 +6,12 @@ import type { AppFormQuestion } from '@/lib/db/application-forms'
 
 interface Props {
   params: Promise<{ companySlug: string; locationSlug: string; jobSlug: string }>
+  searchParams: Promise<{ src?: string }>
 }
 
-export default async function ApplyJobPage({ params }: Props) {
+export default async function ApplyJobPage({ params, searchParams }: Props) {
   const { companySlug, locationSlug, jobSlug } = await params
+  const { src } = await searchParams
 
   let jobTitle = ''
   let jobDescription: string | null = null
@@ -46,6 +48,7 @@ export default async function ApplyJobPage({ params }: Props) {
         locationSlug={locationSlug}
         jobSlug={jobSlug}
         formQuestions={formQuestions}
+        source={src}
       />
     </div>
   )

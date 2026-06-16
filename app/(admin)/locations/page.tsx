@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import QRCodeModal from '@/components/admin/locations/QRCodeModal'
 
-type LocationRow = { id: string; companyId: string; name: string; slug: string; timezone: string; isHiring: boolean }
+type LocationRow = { id: string; companyId: string; companySlug: string; name: string; slug: string; timezone: string; isHiring: boolean }
 
 const TIMEZONES = [
   'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
@@ -161,6 +162,10 @@ export default function LocationsPage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
+                      <QRCodeModal
+                        locationName={loc.name}
+                        applyUrl={`${typeof window !== 'undefined' ? window.location.origin : ''}/apply/${loc.companySlug}/${loc.slug}`}
+                      />
                       <button
                         onClick={() => startEdit(loc)}
                         className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors"
