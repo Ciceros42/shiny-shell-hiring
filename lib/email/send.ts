@@ -66,6 +66,42 @@ export async function sendFailEmail({
   })
 }
 
+export async function sendInviteEmail({
+  to,
+  name,
+  inviteUrl,
+  inviterCompany,
+}: {
+  to: string
+  name: string
+  inviteUrl: string
+  inviterCompany: string
+}) {
+  const resend = getResend()
+  await resend.emails.send({
+    from: process.env.RESEND_FROM_EMAIL ?? 'hiring@shiny-shell.com',
+    to,
+    subject: `You've been invited to ${inviterCompany} Hiring`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px">
+        <h2 style="margin:0 0 8px">Hi ${name},</h2>
+        <p style="color:#444;margin:0 0 24px">
+          You've been invited to manage hiring for <strong>${inviterCompany}</strong>.
+          Click the button below to set your password and access the portal.
+        </p>
+        <a href="${inviteUrl}"
+           style="display:inline-block;background:#1e3c6c;color:#fff;text-decoration:none;
+                  padding:14px 28px;border-radius:8px;font-weight:600;font-size:16px">
+          Accept Invitation →
+        </a>
+        <p style="color:#888;font-size:12px;margin-top:32px">
+          This link expires in 24 hours. If you weren't expecting this, you can ignore it.
+        </p>
+      </div>
+    `,
+  })
+}
+
 export async function sendScreenLinkEmail({
   to,
   name,

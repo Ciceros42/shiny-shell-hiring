@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/auth/require-admin'
 import { adminDb } from '@/lib/supabase/admin'
+import { getCompanyConfig } from '@/lib/db/companies'
+import { sendInviteEmail } from '@/lib/email/send'
 
 export async function POST(req: Request) {
   const { error, profile } = await requireAdmin()
@@ -19,7 +21,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Location is required for location managers' }, { status: 422 })
   }
 
-  // Verify the location belongs to this company if provided
   if (locationId) {
     const { data: loc } = await adminDb
       .from('locations')
@@ -32,20 +33,20 @@ export async function POST(req: Request) {
 
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000'
 
-  // Create auth user and send invite email
-  const { data: inviteData, error: inviteError } = await adminDb.auth.admin.inviteUserByEmail(
-    email.trim(),
-    { redirectTo: `${baseUrl}/dashboard` }
-  )
+  // Create the auth user without sending Supabase's rate-limited invite email
+  const { data: userData, error: createError } = await adminDb.auth.admin.createUser({
+    email: email.trim(),
+    email_confirm: true,
+  })
 
-  if (inviteError || !inviteData?.user) {
-    const msg = (inviteError as { message?: string } | null)?.message ?? 'Failed to send invite'
+  if (createError || !userData?.user) {
+    const msg = (createError as { message?: string } | null)?.message ?? 'Failed to create user'
     return NextResponse.json({ error: msg }, { status: 500 })
   }
 
-  const userId = inviteData.user.id
+  const userId = userData.user.id
 
-  // Insert profile row immediately so the user has access as soon as they accept
+  // Insert profile row
   const { error: profileError } = await adminDb.from('profiles').insert({
     id: userId,
     company_id: profile.companyId,
@@ -55,10 +56,31 @@ export async function POST(req: Request) {
   })
 
   if (profileError) {
-    // Roll back the auth user to avoid orphaned accounts
     await adminDb.auth.admin.deleteUser(userId)
     return NextResponse.json({ error: 'Failed to create profile' }, { status: 500 })
   }
+
+  // Generate a magic link so the new user can log in and set their password
+  // This uses our own email (Resend), bypassing Supabase's rate-limited email
+  const { data: linkData, error: linkError } = await adminDb.auth.admin.generateLink({
+    type: 'magiclink',
+    email: email.trim(),
+    options: { redirectTo: `${baseUrl}/dashboard` },
+  })
+
+  if (linkError || !linkData?.properties?.action_link) {
+    // User is created but we couldn't send the email — return the error but don't delete the user
+    return NextResponse.json({ error: 'User created but failed to generate invite link. Ask them to use "Forgot password" to log in.' }, { status: 500 })
+  }
+
+  const { displayName: companyName } = await getCompanyConfig(profile.companyId)
+
+  await sendInviteEmail({
+    to: email.trim(),
+    name: name.trim(),
+    inviteUrl: linkData.properties.action_link,
+    inviterCompany: companyName,
+  })
 
   return NextResponse.json({ ok: true, userId })
 }
