@@ -79,55 +79,38 @@ export default async function AnalyticsPage({
   let totalSmsCost = 0
   let screenCallCount = 0
 
+  type SlaStats = { median_minutes: number | null; pct_under_10_min: number | null }
+  let slaStats: SlaStats | null = null
+
   if (allApps.length > 0) {
     const allAppIds = allApps.map((a) => a.id)
 
-    const { data: screenCosts } = await adminDb
-      .from('screen_calls')
-      .select('cost_usd')
-      .in('application_id', allAppIds)
-      .not('cost_usd', 'is', null)
+    // Resolve the SLA location (needed to run alongside cost queries)
+    const slaLocationId = locationId ?? (await adminDb
+      .from('locations').select('id').eq('company_id', companyId).limit(1).maybeSingle()
+      .then(r => r.data?.id ?? null))
 
-    for (const row of screenCosts ?? []) {
+    // Cost queries + SLA in parallel — all independent of each other
+    const [screenCostResult, smsCostResult, slaResult] = await Promise.all([
+      adminDb.from('screen_calls').select('cost_usd').in('application_id', allAppIds).not('cost_usd', 'is', null),
+      adminDb.from('sms_log').select('cost_usd').in('application_id', allAppIds).not('cost_usd', 'is', null),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      slaLocationId ? (adminDb as any).rpc('get_screen_sla_stats', { p_location_id: slaLocationId }).single() : Promise.resolve({ data: null }),
+    ])
+
+    for (const row of screenCostResult.data ?? []) {
       totalScreenCost += (row.cost_usd as number) ?? 0
       screenCallCount++
     }
-
-    const { data: smsCosts } = await adminDb
-      .from('sms_log')
-      .select('cost_usd')
-      .in('application_id', allAppIds)
-      .not('cost_usd', 'is', null)
-
-    for (const row of smsCosts ?? []) {
+    for (const row of smsCostResult.data ?? []) {
       totalSmsCost += (row.cost_usd as number) ?? 0
     }
+    slaStats = slaResult.data as SlaStats | null
   }
 
   const totalCost = totalScreenCost + totalSmsCost
   const costPerHire = hiredCount > 0 ? totalCost / hiredCount : null
   const costPerScreen = screenCallCount > 0 ? totalScreenCost / screenCallCount : null
-
-  type SlaStats = { median_minutes: number | null; pct_under_10_min: number | null }
-  let slaLocationId = locationId ?? null
-  if (!slaLocationId) {
-    const { data: firstLoc } = await adminDb
-      .from('locations')
-      .select('id')
-      .eq('company_id', companyId)
-      .limit(1)
-      .maybeSingle()
-    slaLocationId = firstLoc?.id ?? null
-  }
-
-  let slaStats: SlaStats | null = null
-  if (slaLocationId) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: sla } = await (adminDb as any)
-      .rpc('get_screen_sla_stats', { p_location_id: slaLocationId })
-      .single()
-    slaStats = sla as SlaStats | null
-  }
 
   const periodLabel = days === 0 ? 'All time' : `Last ${days} days`
 

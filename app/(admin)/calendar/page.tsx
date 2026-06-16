@@ -3,34 +3,23 @@ import { adminDb } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import CalendarManager from '@/components/admin/calendar/CalendarManager'
 
-export const revalidate = 0
+export const revalidate = 15
 
 export default async function CalendarPage() {
   const { user, profile, error } = await requireAdmin()
   if (error) redirect('/login')
   const { companyId, locationId, role } = profile
 
-  const { data: calProfile } = await adminDb
-    .from('profiles')
-    .select('calendar_token_encrypted, calendar_email')
-    .eq('id', user.id)
-    .single()
+  // Round 1: profile + locations in parallel (both are independent of each other)
+  const [{ data: calProfile }, { data: locations }] = await Promise.all([
+    adminDb.from('profiles').select('calendar_token_encrypted, calendar_email').eq('id', user.id).single(),
+    adminDb.from('locations').select('id, name, timezone').eq('company_id', companyId).order('name'),
+  ])
 
   const calendarConnected = !!calProfile?.calendar_token_encrypted
   const calendarEmail = (calProfile?.calendar_email as string | null) ?? null
-
-  // Company admin: fetch all locations so they can choose
-  const { data: locations } = await adminDb
-    .from('locations')
-    .select('id, name, timezone')
-    .eq('company_id', companyId)
-    .order('name')
-
   const locationOptions = (locations ?? []) as { id: string; name: string; timezone: string }[]
-
-  // Default to manager's own location or first available
-  const defaultLocationId =
-    locationId ?? locationOptions[0]?.id ?? null
+  const defaultLocationId = locationId ?? locationOptions[0]?.id ?? null
 
   if (!defaultLocationId) {
     return (
@@ -41,12 +30,9 @@ export default async function CalendarPage() {
     )
   }
 
-  // Fetch slots for next 28 days
+  // Round 2: slots (needs defaultLocationId from round 1)
   const now = new Date().toISOString()
   const end = new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toISOString()
-
-  // interview_slots has no company_id column; defaultLocationId is already
-  // derived from company-scoped locations, so location scoping is sufficient.
   const { data: slots } = await adminDb
     .from('interview_slots')
     .select('id, start_time, end_time, is_available, manager_user_id')

@@ -4,16 +4,15 @@ import { redirect } from 'next/navigation'
 import { getCompanyPipelineMode } from '@/lib/db/companies'
 import ApplicantsTree, { type AppListItem } from '@/components/admin/applicants/ApplicantsTree'
 
-export const revalidate = 0
+export const revalidate = 15
 
 export default async function PipelinePage() {
   const { profile, error } = await requireAdmin()
   if (error) redirect('/login')
   const { companyId, locationId, role } = profile
 
-  const pipelineMode = await getCompanyPipelineMode(companyId)
-
-  let query = adminDb
+  // Build the query object (no await yet — safe to build before Promise.all)
+  let appsQuery = adminDb
     .from('applications')
     .select(`
       id, status, created_at,
@@ -24,13 +23,17 @@ export default async function PipelinePage() {
     `, { count: 'exact' })
     .order('created_at', { ascending: false })
     .limit(500)
+    .eq('company_id', companyId)
 
-  query = query.eq('company_id', companyId)
   if (role === 'location_manager' && locationId) {
-    query = query.eq('location_id', locationId)
+    appsQuery = appsQuery.eq('location_id', locationId)
   }
 
-  const { data: rows, count } = await query
+  // Fire pipeline mode + applications fetch in parallel
+  const [pipelineMode, { data: rows, count }] = await Promise.all([
+    getCompanyPipelineMode(companyId),
+    appsQuery,
+  ])
 
   type RawRow = {
     id: string

@@ -1,0 +1,184 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import QRCodeModal from '@/components/admin/locations/QRCodeModal'
+
+export type LocationRow = { id: string; companyId: string; companySlug: string; name: string; slug: string; timezone: string; isHiring: boolean }
+
+const TIMEZONES = [
+  'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+  'America/Phoenix', 'America/Anchorage', 'Pacific/Honolulu',
+]
+
+interface Props {
+  initialLocations: LocationRow[]
+  baseUrl: string
+}
+
+export default function LocationsClient({ initialLocations, baseUrl }: Props) {
+  const router = useRouter()
+  const [locations, setLocations] = useState<LocationRow[]>(initialLocations)
+  const [showForm, setShowForm] = useState(false)
+  const [name, setName] = useState('')
+  const [timezone, setTimezone] = useState('America/Denver')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editTimezone, setEditTimezone] = useState('')
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [togglingId, setTogglingId] = useState<string | null>(null)
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    if (!name.trim()) { setError('Name is required'); return }
+    setSaving(true)
+    const res = await fetch('/api/admin/company-locations', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), timezone }),
+    })
+    setSaving(false)
+    if (!res.ok) { const j = await res.json(); setError(j.error ?? 'Failed to create'); return }
+    setShowForm(false); setName(''); setTimezone('America/Denver')
+    router.refresh()
+    // Re-fetch fresh list after creation
+    fetch('/api/admin/company-locations').then((r) => r.json()).then(setLocations)
+  }
+
+  function startEdit(loc: LocationRow) {
+    setEditingId(loc.id)
+    setEditName(loc.name)
+    setEditTimezone(loc.timezone)
+  }
+
+  async function saveEdit(loc: LocationRow) {
+    setSavingEdit(true)
+    const res = await fetch(`/api/admin/company-locations/${loc.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: editName, timezone: editTimezone }),
+    })
+    if (res.ok) {
+      setLocations((prev) => prev.map((l) => l.id === loc.id ? { ...l, name: editName, timezone: editTimezone } : l))
+      setEditingId(null)
+    }
+    setSavingEdit(false)
+  }
+
+  async function toggleHiring(loc: LocationRow) {
+    setTogglingId(loc.id)
+    const res = await fetch(`/api/admin/company-locations/${loc.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isHiring: !loc.isHiring }),
+    })
+    if (res.ok) {
+      setLocations((prev) => prev.map((l) => l.id === loc.id ? { ...l, isHiring: !l.isHiring } : l))
+    }
+    setTogglingId(null)
+  }
+
+  const inputClass = 'w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none'
+
+  return (
+    <div className="p-8 max-w-3xl">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Locations</h1>
+          <p className="text-sm text-gray-500 mt-0.5">Physical locations that applicants apply to.</p>
+        </div>
+        <button onClick={() => setShowForm((v) => !v)} className="rounded-md px-4 py-2 text-sm font-semibold text-white transition-colors" style={{ backgroundColor: 'var(--brand-primary)' }}>
+          {showForm ? 'Cancel' : '+ New location'}
+        </button>
+      </div>
+
+      {showForm && (
+        <form onSubmit={handleCreate} className="bg-white rounded-lg border border-blue-300 p-5 mb-5 space-y-4">
+          <h3 className="text-sm font-semibold text-gray-700">New location</h3>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Location name *</label>
+            <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Main Street" autoFocus />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1">Timezone *</label>
+            <select className={inputClass + ' bg-white'} value={timezone} onChange={(e) => setTimezone(e.target.value)}>
+              {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+            </select>
+          </div>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <div className="flex gap-3 pt-1">
+            <button type="submit" disabled={saving} className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+              {saving ? 'Creating…' : 'Create location'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {locations.length === 0 ? (
+        <div className="bg-white rounded-lg border border-gray-200 py-12 text-center">
+          <p className="text-sm text-gray-400">No locations yet.</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <ul className="divide-y divide-gray-100">
+            {locations.map((loc) => (
+              <li key={loc.id} className="px-5 py-4">
+                {editingId === loc.id ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Location name</label>
+                      <input className={inputClass} value={editName} onChange={(e) => setEditName(e.target.value)} autoFocus />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-700 mb-1">Timezone</label>
+                      <select className={inputClass + ' bg-white'} value={editTimezone} onChange={(e) => setEditTimezone(e.target.value)}>
+                        {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <button onClick={() => saveEdit(loc)} disabled={savingEdit || !editName.trim()} className="rounded px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50" style={{ backgroundColor: 'var(--brand-primary)' }}>
+                        {savingEdit ? 'Saving…' : 'Save'}
+                      </button>
+                      <button onClick={() => setEditingId(null)} className="rounded px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-gray-900">{loc.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {loc.timezone} · <span className="font-mono">/apply/…/{loc.slug}/</span>
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <QRCodeModal
+                        locationName={loc.name}
+                        applyUrl={`${baseUrl}/apply/${loc.companySlug}/${loc.slug}`}
+                      />
+                      <button onClick={() => startEdit(loc)} className="text-xs text-gray-400 hover:text-gray-700 px-2 py-1 rounded hover:bg-gray-100 transition-colors">
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => toggleHiring(loc)}
+                        disabled={togglingId === loc.id}
+                        className={`text-xs px-3 py-1 rounded-full font-medium transition-colors disabled:opacity-50 ${loc.isHiring ? 'bg-green-100 text-green-700 hover:bg-green-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                      >
+                        {loc.isHiring ? 'Hiring' : 'Not hiring'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
