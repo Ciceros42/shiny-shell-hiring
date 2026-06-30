@@ -34,6 +34,7 @@ export async function createApplication({
   questionSetId,
   status,
   source,
+  availability,
 }: {
   applicantId: string
   companyId: string
@@ -42,6 +43,7 @@ export async function createApplication({
   questionSetId: string
   status: ApplicationStatus
   source: string
+  availability?: Record<string, string[]>
 }): Promise<Application> {
   const { data, error } = await adminDb
     .from('applications')
@@ -53,6 +55,7 @@ export async function createApplication({
       question_set_id: questionSetId,
       status,
       source,
+      availability: availability ?? {},
     })
     .select()
     .single()

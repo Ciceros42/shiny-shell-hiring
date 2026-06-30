@@ -11,6 +11,7 @@ export const ApplySchema = z.object({
   website: z.string().optional(), // honeypot
   responses: z.record(z.string(), z.array(z.string())).optional(),
   source: z.string().max(50).optional(),
+  availability: z.record(z.string(), z.array(z.string())).optional(),
 })
 
 export type ApplyInput = z.infer<typeof ApplySchema>

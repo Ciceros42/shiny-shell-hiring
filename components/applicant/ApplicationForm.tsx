@@ -15,6 +15,15 @@ interface Props {
 const inputClass =
   'w-full rounded-xl border border-gray-200 px-4 text-[15px] text-gray-900 placeholder:text-gray-400 focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[color-mix(in_srgb,var(--brand-primary)_25%,transparent)] transition-colors'
 
+const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const
+const DAY_LABELS: Record<string, string> = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' }
+const SHIFTS = ['morning', 'afternoon', 'evening'] as const
+const SHIFT_LABELS: Record<string, string> = { morning: 'AM', afternoon: 'PM', evening: 'Eve' }
+
+type Day = typeof DAYS[number]
+type Shift = typeof SHIFTS[number]
+type Availability = Partial<Record<Day, Shift[]>>
+
 export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuestions = [], source }: Props) {
   const router = useRouter()
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -27,6 +36,15 @@ export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuesti
   const [website, setWebsite] = useState('')
   const [responses, setResponses] = useState<Record<string, string[]>>({})
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
+  const [availability, setAvailability] = useState<Availability>({})
+
+  function toggleSlot(day: Day, shift: Shift) {
+    setAvailability(prev => {
+      const current = prev[day] ?? []
+      const next = current.includes(shift) ? current.filter(s => s !== shift) : [...current, shift]
+      return next.length === 0 ? { ...prev, [day]: [] } : { ...prev, [day]: next }
+    })
+  }
 
   function toggleOption(questionId: string, optionText: string, type: 'single' | 'multi') {
     setResponses((prev) => {
@@ -75,6 +93,7 @@ export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuesti
           website,
           responses: Object.keys(responses).length > 0 ? responses : undefined,
           source: source ?? undefined,
+          availability: Object.keys(availability).length > 0 ? availability : undefined,
         }),
       })
 
@@ -206,6 +225,61 @@ export function ApplicationForm({ companySlug, locationSlug, jobSlug, formQuesti
           </div>
         </div>
       )}
+
+      {/* Availability grid */}
+      <div>
+        <p className="text-[13px] font-semibold text-gray-700 mb-2">
+          When are you available to work?{' '}
+          <span className="font-normal text-gray-400">(select all that apply)</span>
+        </p>
+        <div className="rounded-xl border border-gray-200 overflow-hidden">
+          {/* Header row */}
+          <div className="grid grid-cols-[56px_1fr_1fr_1fr] bg-gray-50 border-b border-gray-200">
+            <div />
+            {SHIFTS.map(shift => (
+              <div key={shift} className="py-1.5 text-center text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+                {SHIFT_LABELS[shift]}
+              </div>
+            ))}
+          </div>
+          {/* Day rows */}
+          {DAYS.map((day, i) => {
+            const dayShifts = availability[day] ?? []
+            return (
+              <div
+                key={day}
+                className={`grid grid-cols-[56px_1fr_1fr_1fr] ${i < DAYS.length - 1 ? 'border-b border-gray-100' : ''}`}
+              >
+                <div className="flex items-center justify-center text-[12px] font-semibold text-gray-500 py-2">
+                  {DAY_LABELS[day]}
+                </div>
+                {SHIFTS.map(shift => {
+                  const active = dayShifts.includes(shift)
+                  return (
+                    <button
+                      key={shift}
+                      type="button"
+                      onClick={() => toggleSlot(day, shift)}
+                      className="m-1 rounded-lg py-2 text-[12px] font-semibold transition-all duration-100 border"
+                      style={active ? {
+                        backgroundColor: 'var(--brand-primary)',
+                        borderColor: 'var(--brand-primary)',
+                        color: 'var(--brand-primary-fg)',
+                      } : {
+                        backgroundColor: '#F9FAFB',
+                        borderColor: '#E5E7EB',
+                        color: '#6B7280',
+                      }}
+                    >
+                      {active ? '✓' : ''}
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })}
+        </div>
+      </div>
 
       {/* Custom questions */}
       {formQuestions.map((q) => {

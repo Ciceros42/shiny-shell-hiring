@@ -42,6 +42,7 @@ interface DetailData {
     id: string
     status: string
     created_at: string
+    availability: Record<string, string[]> | null
     applicants: { id: string; name: string; phone: string; email: string | null; sms_opted_out: boolean } | null
     locations: { id: string; name: string } | null
     jobs: { id: string; title: string } | null
@@ -248,6 +249,11 @@ export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAd
                   </div>
                 )}
               </div>
+
+              {/* Availability */}
+              {detail.app.availability && Object.keys(detail.app.availability).length > 0 && (
+                <AvailabilityGrid availability={detail.app.availability} />
+              )}
 
               {/* Screen Result */}
               {detail.screenResult && (
@@ -481,5 +487,55 @@ export default function ApplicantPanel({ appId, app, pipelineMode, onClose, onAd
         )}
       </div>
     </>
+  )
+}
+
+const AVAIL_DAYS = ['mon','tue','wed','thu','fri','sat','sun']
+const AVAIL_DAY_LABELS: Record<string,string> = { mon:'Mon',tue:'Tue',wed:'Wed',thu:'Thu',fri:'Fri',sat:'Sat',sun:'Sun' }
+const AVAIL_SHIFTS = ['morning','afternoon','evening']
+const AVAIL_SHIFT_LABELS: Record<string,string> = { morning:'AM',afternoon:'PM',evening:'Eve' }
+
+function AvailabilityGrid({ availability }: { availability: Record<string, string[]> }) {
+  return (
+    <section>
+      <h3 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: 'var(--brand-primary)' }}>Availability</h3>
+      <div className="rounded-lg border border-gray-200 overflow-hidden text-xs">
+        {/* Header */}
+        <div className="grid grid-cols-[40px_1fr_1fr_1fr] bg-gray-50 border-b border-gray-200">
+          <div />
+          {AVAIL_SHIFTS.map(s => (
+            <div key={s} className="py-1 text-center font-semibold text-gray-400 uppercase tracking-wide" style={{ fontSize: 10 }}>
+              {AVAIL_SHIFT_LABELS[s]}
+            </div>
+          ))}
+        </div>
+        {AVAIL_DAYS.map((day, i) => {
+          const shifts = availability[day] ?? []
+          return (
+            <div key={day} className={`grid grid-cols-[40px_1fr_1fr_1fr] ${i < AVAIL_DAYS.length - 1 ? 'border-b border-gray-100' : ''}`}>
+              <div className="flex items-center justify-center font-semibold text-gray-400 py-1.5" style={{ fontSize: 10 }}>
+                {AVAIL_DAY_LABELS[day]}
+              </div>
+              {AVAIL_SHIFTS.map(shift => {
+                const on = shifts.includes(shift)
+                return (
+                  <div key={shift} className="flex items-center justify-center py-1.5">
+                    <span
+                      className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-bold"
+                      style={{
+                        backgroundColor: on ? 'var(--brand-primary)' : '#F3F4F6',
+                        color: on ? '#fff' : '#D1D5DB',
+                      }}
+                    >
+                      {on ? '✓' : ''}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          )
+        })}
+      </div>
+    </section>
   )
 }

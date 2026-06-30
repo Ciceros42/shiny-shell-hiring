@@ -14,7 +14,7 @@ export async function GET(_req: Request, { params }: Params) {
     adminDb
       .from('applications')
       .select(`
-        id, status, created_at, job_id,
+        id, status, created_at, job_id, availability,
         applicants(id, name, phone, email, sms_opted_out),
         locations(id, name),
         jobs(id, title),

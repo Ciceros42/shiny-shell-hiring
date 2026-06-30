@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { name, phone, email, companySlug, locationSlug, jobSlug, preferEmail, website, responses, source } = parsed.data
+  const { name, phone, email, companySlug, locationSlug, jobSlug, preferEmail, website, responses, source, availability } = parsed.data
 
   // Honeypot — silently accept to avoid tipping off bots
   if (website) return NextResponse.json({ status: 'ok' })
@@ -131,6 +131,7 @@ export async function POST(req: Request) {
     questionSetId: job.questionSetId,
     status: 'applied',
     source: source ?? 'direct',
+    availability,
   })
 
   // Save application form responses and check for hard-fail answers
