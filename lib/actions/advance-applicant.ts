@@ -44,7 +44,7 @@ export async function advanceApplicant(applicationId: string, companyId: string)
     } else {
       token = Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url')
       const expiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000)
-      const earliestBookable = new Date(Date.now() + 30 * 60 * 1000)
+      const earliestBookable = new Date(Date.now())
       await createMagicLink({ type: 'schedule', applicationId, token, expiresAt, earliestBookable })
     }
 

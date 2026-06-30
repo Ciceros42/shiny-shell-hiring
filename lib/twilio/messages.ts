@@ -16,8 +16,10 @@ export const SMS = {
   fail: (companyName = 'Shiny Shell Carwash') =>
     `Thank you for your application to ${companyName}. We appreciate your time and wish you all the best.`,
 
-  interviewConfirmation: (dateStr: string, location: string, companyName = 'Shiny Shell') =>
-    `Your ${companyName} interview is confirmed for ${dateStr} at ${location}. Reply R to reschedule.`,
+  interviewConfirmation: (dateStr: string, location: string, companyName = 'Shiny Shell', meetLink?: string | null) =>
+    meetLink
+      ? `Your ${companyName} interview is confirmed for ${dateStr} at ${location}. Join here: ${meetLink} — Reply R to reschedule.`
+      : `Your ${companyName} interview is confirmed for ${dateStr} at ${location}. Reply R to reschedule.`,
 
   interviewReminder: (dateStr: string, companyName = 'Shiny Shell') =>
     `Reminder: Your ${companyName} interview is tomorrow at ${dateStr}. Reply R to reschedule.`,

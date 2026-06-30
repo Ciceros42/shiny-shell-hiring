@@ -96,8 +96,9 @@ export async function POST(req: Request, { params }: Params) {
       .eq('id', slotId)
       .single()
 
+    let meetLink: string | null = null
     try {
-      const { googleEventId, meetLink } = await createInterviewEvent({
+      const result = await createInterviewEvent({
         interviewId: interview.id,
         applicantName: applicant?.name ?? 'Applicant',
         slotStartTime: slotRow?.start_time ?? '',
@@ -108,8 +109,9 @@ export async function POST(req: Request, { params }: Params) {
         managerUserId: slotRow?.manager_user_id ?? '',
         companyName,
       })
+      meetLink = result.meetLink
       // Step 6
-      await updateInterviewGoogleEventId(interview.id, googleEventId, meetLink)
+      await updateInterviewGoogleEventId(interview.id, result.googleEventId, meetLink)
     } catch (err) {
       Sentry.captureException(err, { extra: { context: 'createInterviewEvent', interviewId: interview.id } })
     }
@@ -119,7 +121,7 @@ export async function POST(req: Request, { params }: Params) {
       const dateStr = formatInterviewDateTime(slotRow.start_time, location.timezone)
       await sendSMS(
         applicant.phone,
-        SMS.interviewConfirmation(dateStr, location.name, companyName),
+        SMS.interviewConfirmation(dateStr, location.name, companyName, meetLink),
         application.id,
         'interview_confirmation',
         location.timezone,
