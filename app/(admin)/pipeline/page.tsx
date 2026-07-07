@@ -56,6 +56,7 @@ export default async function PipelinePage() {
       applicantName: r.applicants?.name ?? '—',
       applicantPhone: r.applicants?.phone ?? '',
       jobTitle: r.jobs?.title ?? null,
+      locationId: r.locations?.id ?? '',
       locationName: r.locations?.name ?? '—',
       status: r.status,
       createdAt: r.created_at,
@@ -80,7 +81,7 @@ export default async function PipelinePage() {
         <ClearPipelineButton />
       </div>
       <div className="flex-1 overflow-auto px-8 py-4">
-        <ApplicantsTree apps={apps} pipelineMode={pipelineMode} />
+        <ApplicantsTree apps={apps} pipelineMode={pipelineMode} userRole={role} />
       </div>
     </div>
   )

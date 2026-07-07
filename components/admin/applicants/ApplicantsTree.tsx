@@ -9,6 +9,7 @@ export type AppListItem = {
   applicantName: string
   applicantPhone: string
   jobTitle: string | null
+  locationId: string
   locationName: string
   status: string
   createdAt: string
@@ -19,6 +20,7 @@ export type AppListItem = {
 interface Props {
   apps: AppListItem[]
   pipelineMode: 'suggestion' | 'assistant'
+  userRole: 'dev' | 'company_admin' | 'location_manager'
 }
 
 const BUCKETS = [
@@ -74,14 +76,31 @@ function ScoreBadge({ score, passed }: { score: number; passed: boolean | null }
   )
 }
 
-export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Props) {
+export default function ApplicantsTree({ apps: initialApps, pipelineMode, userRole }: Props) {
   const [apps, setApps] = useState(initialApps)
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [actionLoading, setActionLoading] = useState<Set<string>>(new Set())
   const [actionError, setActionError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [selectedLocations, setSelectedLocations] = useState<Set<string>>(new Set())
   const [confirmAction, setConfirmAction] = useState<{ appId: string; name: string; action: 'dismiss' | 'reject' } | null>(null)
+
+  // Unique locations derived from loaded apps — stable enough for filter chips
+  const availableLocations = Array.from(
+    new Map(apps.map((a) => [a.locationId, a.locationName])).entries()
+  ).map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name))
+
+  const showLocationFilter = userRole !== 'location_manager' && availableLocations.length > 1
+
+  function toggleLocation(locationId: string) {
+    setSelectedLocations((prev) => {
+      const next = new Set(prev)
+      if (next.has(locationId)) next.delete(locationId)
+      else next.add(locationId)
+      return next
+    })
+  }
 
   const isLoading = (id: string) => actionLoading.has(id)
   const selectedApp = apps.find((a) => a.id === selectedAppId) ?? null
@@ -169,12 +188,14 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
     ? BUCKETS
     : BUCKETS.filter((b) => b.id !== 'needs_decision')
 
-  const filteredApps = search.trim()
-    ? apps.filter(a =>
-        a.applicantName.toLowerCase().includes(search.toLowerCase()) ||
-        a.applicantPhone.includes(search)
-      )
-    : apps
+  const filteredApps = apps.filter((a) => {
+    if (selectedLocations.size > 0 && !selectedLocations.has(a.locationId)) return false
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      return a.applicantName.toLowerCase().includes(q) || a.applicantPhone.includes(q)
+    }
+    return true
+  })
 
   return (
     <div className="flex h-full">
@@ -222,6 +243,45 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
             Collapse All
           </button>
         </div>
+
+        {/* Location filter chips — company_admin / dev only, hidden when single location */}
+        {showLocationFilter && (
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-wide shrink-0" style={{ color: 'var(--ui-text-muted)' }}>
+              Location
+            </span>
+            {availableLocations.map((loc) => {
+              const active = selectedLocations.has(loc.id)
+              return (
+                <button
+                  key={loc.id}
+                  onClick={() => toggleLocation(loc.id)}
+                  className="rounded-full px-3 py-1 text-[12px] font-medium border transition-colors"
+                  style={active ? {
+                    backgroundColor: 'var(--ui-accent)',
+                    borderColor: 'var(--ui-accent)',
+                    color: 'var(--ui-accent-fg)',
+                  } : {
+                    backgroundColor: 'var(--ui-card-bg)',
+                    borderColor: 'var(--ui-border)',
+                    color: 'var(--ui-text-secondary)',
+                  }}
+                >
+                  {loc.name}
+                </button>
+              )
+            })}
+            {selectedLocations.size > 0 && (
+              <button
+                onClick={() => setSelectedLocations(new Set())}
+                className="text-[11px] transition-colors"
+                style={{ color: 'var(--ui-text-muted)' }}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
 
         <div className="space-y-3">
           {visibleBuckets.map((bucket) => {
