@@ -72,14 +72,6 @@ async function upsertScreenAnswer({
   )
 }
 
-async function saveScreenAnswers(scoredAnswers: ScoredAnswer[]) {
-  for (const a of scoredAnswers) {
-    await adminDb
-      .from('screen_answers')
-      .update({ score: a.score, reasoning: a.reasoning })
-      .eq('question_id', a.questionId)
-  }
-}
 
 export async function batchScoreAndSummarize(
   answers: ScreenAnswer[],

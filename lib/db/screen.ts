@@ -89,24 +89,6 @@ export async function saveScreenAnswerScores(
   }
 }
 
-export async function updateScreenCallStatus(
-  id: string,
-  status: ScreenCall['status'],
-  extra?: { transcript?: string; inflectionNotes?: string; endedAt?: string; costUsd?: number }
-) {
-  const { error } = await adminDb
-    .from('screen_calls')
-    .update({
-      status,
-      ...(extra?.transcript !== undefined && { transcript: extra.transcript }),
-      ...(extra?.inflectionNotes !== undefined && { inflection_notes: extra.inflectionNotes }),
-      ...(extra?.endedAt !== undefined && { ended_at: extra.endedAt }),
-      ...(extra?.costUsd !== undefined && { cost_usd: extra.costUsd }),
-    })
-    .eq('id', id)
-  if (error) throw new Error(`updateScreenCallStatus failed: ${error.message}`)
-}
-
 export async function updateApplicationStatusByVapiId(vapiCallId: string, status: string) {
   const { data: screenCall } = await adminDb
     .from('screen_calls')

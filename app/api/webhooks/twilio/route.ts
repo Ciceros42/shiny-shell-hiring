@@ -145,6 +145,45 @@ export async function POST(req: Request) {
     return twimlEmpty()
   }
 
+  // GOOD / OK / NO = manager fit rating after interview
+  // Must run before YES/NO so a manager's 'NO' (thumbs-down) isn't swallowed by the retention branch
+  if (body === 'GOOD' || body === 'OK' || body === 'NO') {
+    const { data: profile } = await adminDb
+      .from('profiles')
+      .select('id, location_id')
+      .eq('phone', from)
+      .maybeSingle()
+
+    if (profile) {
+      try {
+        const { data: interview } = await adminDb
+          .from('interviews')
+          .select('id, applications!inner(location_id)')
+          .eq('applications.location_id', profile.location_id)
+          .eq('fit_prompt_sent', true)
+          .is('manager_rating', null)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        if (interview) {
+          const ratingMap: Record<string, 'thumbs_up' | 'thumbs_down' | 'maybe'> = {
+            GOOD: 'thumbs_up',
+            OK: 'maybe',
+            NO: 'thumbs_down',
+          }
+          await updateInterviewManagerRating(interview.id, ratingMap[body])
+        }
+      } catch (err) {
+        Sentry.captureException(err, { extra: { context: 'manager_rating_sms', from } })
+      }
+      return twimlEmpty()
+    }
+
+    // Sender is not a manager — GOOD/OK are not meaningful here; only 'NO' falls through to retention
+    if (body !== 'NO') return twimlEmpty()
+  }
+
   // YES / NO = retention check-in response
   if (body === 'YES' || body === 'NO') {
     try {
@@ -170,43 +209,6 @@ export async function POST(req: Request) {
       }
     } catch (err) {
       Sentry.captureException(err, { extra: { context: 'retention_response', from } })
-    }
-    return twimlEmpty()
-  }
-
-  // GOOD / OK / NO = manager fit rating after interview
-  if (body === 'GOOD' || body === 'OK' || body === 'NO') {
-    try {
-      // Look up manager by phone via profiles
-      const { data: profile } = await adminDb
-        .from('profiles')
-        .select('id, location_id')
-        .eq('phone', from)
-        .maybeSingle()
-
-      if (profile) {
-        // Find the most recent interview at their location awaiting a rating
-        const { data: interview } = await adminDb
-          .from('interviews')
-          .select('id, applications!inner(location_id)')
-          .eq('applications.location_id', profile.location_id)
-          .eq('fit_prompt_sent', true)
-          .is('manager_rating', null)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-
-        if (interview) {
-          const ratingMap: Record<string, 'thumbs_up' | 'thumbs_down' | 'maybe'> = {
-            GOOD: 'thumbs_up',
-            OK: 'maybe',
-            NO: 'thumbs_down',
-          }
-          await updateInterviewManagerRating(interview.id, ratingMap[body])
-        }
-      }
-    } catch (err) {
-      Sentry.captureException(err, { extra: { context: 'manager_rating_sms', from } })
     }
     return twimlEmpty()
   }
