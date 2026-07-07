@@ -88,6 +88,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
   const [actionLoading, setActionLoading] = useState<Set<string>>(new Set())
   const [actionError, setActionError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [confirmDismiss, setConfirmDismiss] = useState<{ appId: string; name: string } | null>(null)
 
   const isLoading = (id: string) => actionLoading.has(id)
   const selectedApp = apps.find((a) => a.id === selectedAppId) ?? null
@@ -134,6 +135,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
   }
 
   async function handleDismiss(appId: string) {
+    setConfirmDismiss(null)
     setActionError(null)
     setActionLoading(prev => new Set(prev).add(appId))
     const res = await fetch(`/api/admin/applications/${appId}/dismiss`, { method: 'POST' })
@@ -163,6 +165,14 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
     setCollapsed((c) => ({ ...c, [bucketId]: !c[bucketId] }))
   }
 
+  function collapseAll() {
+    setCollapsed(Object.fromEntries(BUCKETS.map((b) => [b.id, true])))
+  }
+
+  function expandAll() {
+    setCollapsed({})
+  }
+
   const visibleBuckets = pipelineMode === 'suggestion'
     ? BUCKETS
     : BUCKETS.filter((b) => b.id !== 'needs_decision')
@@ -175,7 +185,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
     : apps
 
   return (
-    <div className="flex h-full" data-no-press-zone>
+    <div className="flex h-full">
       <div className="flex-1 overflow-auto min-w-0">
         {actionError && (
           <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-[13px] text-red-600">
@@ -183,20 +193,42 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
           </div>
         )}
 
-        {/* Search */}
-        <div className="mb-4">
+        {/* Search + collapse/expand */}
+        <div className="mb-4 flex items-center gap-2">
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search by name or phone…"
-            className="w-full rounded-xl border px-3.5 py-2.5 text-[13px] focus:outline-none transition-colors"
+            className="flex-1 min-w-0 rounded-xl border px-3.5 py-2.5 text-[13px] focus:outline-none transition-colors"
             style={{
               borderColor: 'var(--ui-border)',
               backgroundColor: 'var(--ui-card-bg)',
               color: 'var(--ui-text-primary)',
             }}
           />
+          <button
+            onClick={expandAll}
+            className="shrink-0 rounded-xl border px-3 py-2.5 text-[12px] font-medium transition-colors"
+            style={{
+              borderColor: 'var(--ui-border)',
+              color: 'var(--ui-text-secondary)',
+              backgroundColor: 'var(--ui-card-bg)',
+            }}
+          >
+            Expand All
+          </button>
+          <button
+            onClick={collapseAll}
+            className="shrink-0 rounded-xl border px-3 py-2.5 text-[12px] font-medium transition-colors"
+            style={{
+              borderColor: 'var(--ui-border)',
+              color: 'var(--ui-text-secondary)',
+              backgroundColor: 'var(--ui-card-bg)',
+            }}
+          >
+            Collapse All
+          </button>
         </div>
 
         <div className="space-y-3">
@@ -393,7 +425,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
                           </button>
                           {['passed', 'scheduled', 'interviewed', 'in_progress', 'new'].includes(bucket.id) && (
                             <button
-                              onClick={() => handleDismiss(app.id)}
+                              onClick={() => setConfirmDismiss({ appId: app.id, name: app.applicantName })}
                               disabled={isLoading(app.id)}
                               title="Remove from pipeline"
                               className="rounded-lg px-2 py-1.5 text-[11px] font-medium transition-colors border disabled:opacity-50"
@@ -425,6 +457,48 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
           )}
         </div>
       </div>
+
+      {/* Dismiss confirmation modal */}
+      {confirmDismiss && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+          onClick={() => setConfirmDismiss(null)}
+        >
+          <div
+            className="rounded-2xl shadow-xl px-8 py-7 w-full max-w-sm mx-4"
+            style={{ backgroundColor: 'var(--ui-card-bg)', border: '1px solid var(--ui-border)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="text-[15px] font-semibold mb-1" style={{ color: 'var(--ui-text-primary)' }}>
+              Remove from pipeline?
+            </p>
+            <p className="text-[13px] mb-6" style={{ color: 'var(--ui-text-secondary)' }}>
+              <span className="font-medium" style={{ color: 'var(--ui-text-primary)' }}>{confirmDismiss.name}</span> will be moved out of active buckets and kept in applicant history only.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setConfirmDismiss(null)}
+                className="rounded-xl px-4 py-2 text-[13px] font-medium border transition-colors"
+                style={{
+                  borderColor: 'var(--ui-border)',
+                  color: 'var(--ui-text-secondary)',
+                  backgroundColor: 'var(--ui-card-bg)',
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDismiss(confirmDismiss.appId)}
+                className="rounded-xl px-4 py-2 text-[13px] font-semibold text-white transition-colors"
+                style={{ backgroundColor: '#6B7280' }}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Detail panel */}
       <ApplicantPanel
