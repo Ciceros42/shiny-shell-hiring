@@ -229,7 +229,6 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
         <div className="space-y-3">
           {visibleBuckets.map((bucket) => {
             const bucketApps = filteredApps.filter((a) => bucket.statuses.includes(a.status))
-            if (bucket.id === 'not_proceeding' && bucketApps.length === 0) return null
             const isCollapsed = collapsed[bucket.id] ?? false
 
             return (
