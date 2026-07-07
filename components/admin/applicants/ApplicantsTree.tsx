@@ -51,7 +51,7 @@ const BUCKETS = [
     accentColor: '#059669', accentBg: 'rgba(5,150,105,0.06)', badgeStyle: { backgroundColor: '#A7F3D0', color: '#064E3B' },
   },
   {
-    id: 'not_proceeding', label: 'Not Proceeding', statuses: ['failed', 'rejected', 'no_show'],
+    id: 'not_proceeding', label: 'Not Proceeding', statuses: ['failed', 'rejected', 'no_show', 'dismissed'],
     defaultCollapsed: true,
     accentColor: '#9CA3AF', accentBg: 'transparent', badgeStyle: { backgroundColor: '#F3F4F6', color: '#6B7280' },
   },
@@ -129,6 +129,19 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
       if (selectedAppId === appId) setSelectedAppId(null)
     } else {
       setActionError('Failed to mark as hired. Please try again.')
+    }
+    setActionLoading(prev => { const s = new Set(prev); s.delete(appId); return s })
+  }
+
+  async function handleDismiss(appId: string) {
+    setActionError(null)
+    setActionLoading(prev => new Set(prev).add(appId))
+    const res = await fetch(`/api/admin/applications/${appId}/dismiss`, { method: 'POST' })
+    if (res.ok) {
+      setApps((prev) => prev.map((a) => a.id === appId ? { ...a, status: 'dismissed' } : a))
+      if (selectedAppId === appId) setSelectedAppId(null)
+    } else {
+      setActionError('Failed to dismiss applicant.')
     }
     setActionLoading(prev => { const s = new Set(prev); s.delete(appId); return s })
   }
@@ -381,6 +394,21 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
                           >
                             View
                           </button>
+                          {['passed', 'scheduled', 'interviewed', 'in_progress', 'new'].includes(bucket.id) && (
+                            <button
+                              onClick={() => handleDismiss(app.id)}
+                              disabled={isLoading(app.id)}
+                              title="Remove from pipeline"
+                              className="rounded-lg px-2 py-1.5 text-[11px] font-medium transition-colors border disabled:opacity-50"
+                              style={{
+                                borderColor: 'var(--ui-border)',
+                                color: 'var(--ui-text-muted)',
+                                backgroundColor: 'var(--ui-card-bg)',
+                              }}
+                            >
+                              ✕
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}
