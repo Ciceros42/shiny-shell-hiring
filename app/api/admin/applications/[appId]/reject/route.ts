@@ -8,6 +8,10 @@ export async function POST(_req: Request, { params }: Params) {
   const { error, profile } = await requireAdmin()
   if (error) return error
   const { appId } = await params
-  await rejectApplicant(appId, profile.companyId)
-  return NextResponse.json({ ok: true })
+  try {
+    await rejectApplicant(appId, profile.companyId)
+    return NextResponse.json({ ok: true })
+  } catch (e) {
+    return NextResponse.json({ error: (e as Error).message }, { status: 500 })
+  }
 }

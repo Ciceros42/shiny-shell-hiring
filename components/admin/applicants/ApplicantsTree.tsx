@@ -81,7 +81,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
   const [actionLoading, setActionLoading] = useState<Set<string>>(new Set())
   const [actionError, setActionError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
-  const [confirmDismiss, setConfirmDismiss] = useState<{ appId: string; name: string } | null>(null)
+  const [confirmAction, setConfirmAction] = useState<{ appId: string; name: string; action: 'dismiss' | 'reject' } | null>(null)
 
   const isLoading = (id: string) => actionLoading.has(id)
   const selectedApp = apps.find((a) => a.id === selectedAppId) ?? null
@@ -101,11 +101,10 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
 
   async function handleReject(appId: string) {
     setActionError(null)
-    const name = apps.find(a => a.id === appId)?.applicantName ?? 'this applicant'
-    if (!window.confirm('Reject ' + name + '? This cannot be undone.')) return
     setActionLoading(prev => new Set(prev).add(appId))
     const res = await fetch(`/api/admin/applications/${appId}/reject`, { method: 'POST' })
     if (res.ok) {
+      setConfirmAction(null)
       setApps((prev) => prev.map((a) => a.id === appId ? { ...a, status: 'rejected' } : a))
       if (selectedAppId === appId) setSelectedAppId(null)
     } else {
@@ -128,11 +127,11 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
   }
 
   async function handleDismiss(appId: string) {
-    setConfirmDismiss(null)
     setActionError(null)
     setActionLoading(prev => new Set(prev).add(appId))
     const res = await fetch(`/api/admin/applications/${appId}/dismiss`, { method: 'POST' })
     if (res.ok) {
+      setConfirmAction(null)
       setApps((prev) => prev.map((a) => a.id === appId ? { ...a, status: 'dismissed' } : a))
       if (selectedAppId === appId) setSelectedAppId(null)
     } else {
@@ -365,7 +364,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
                                 Advance
                               </button>
                               <button
-                                onClick={() => handleReject(app.id)}
+                                onClick={() => setConfirmAction({ appId: app.id, name: app.applicantName, action: 'reject' })}
                                 disabled={isLoading(app.id)}
                                 className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors disabled:opacity-50"
                                 style={{ backgroundColor: '#dc2626' }}
@@ -385,7 +384,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
                                 Hire
                               </button>
                               <button
-                                onClick={() => handleReject(app.id)}
+                                onClick={() => setConfirmAction({ appId: app.id, name: app.applicantName, action: 'reject' })}
                                 disabled={isLoading(app.id)}
                                 className="rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-white transition-colors disabled:opacity-50"
                                 style={{ backgroundColor: '#dc2626' }}
@@ -417,7 +416,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
                           </button>
                           {['passed', 'scheduled', 'interviewed', 'in_progress', 'new'].includes(bucket.id) && (
                             <button
-                              onClick={() => setConfirmDismiss({ appId: app.id, name: app.applicantName })}
+                              onClick={() => setConfirmAction({ appId: app.id, name: app.applicantName, action: 'dismiss' })}
                               disabled={isLoading(app.id)}
                               title="Remove from pipeline"
                               className="rounded-lg px-2 py-1.5 text-[11px] font-medium transition-colors border disabled:opacity-50"
@@ -450,47 +449,56 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
         </div>
       </div>
 
-      {/* Dismiss confirmation modal */}
-      {confirmDismiss && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
-          onClick={() => setConfirmDismiss(null)}
-        >
+      {/* Dismiss / reject confirmation modal */}
+      {confirmAction && (() => {
+        const isDismiss = confirmAction.action === 'dismiss'
+        const loading = isLoading(confirmAction.appId)
+        return (
           <div
-            className="rounded-2xl shadow-xl px-8 py-7 w-full max-w-sm mx-4"
-            style={{ backgroundColor: 'var(--ui-card-bg)', border: '1px solid var(--ui-border)' }}
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ backgroundColor: 'rgba(0,0,0,0.4)' }}
+            onClick={() => { if (!loading) setConfirmAction(null) }}
           >
-            <p className="text-[15px] font-semibold mb-1" style={{ color: 'var(--ui-text-primary)' }}>
-              Remove from pipeline?
-            </p>
-            <p className="text-[13px] mb-6" style={{ color: 'var(--ui-text-secondary)' }}>
-              <span className="font-medium" style={{ color: 'var(--ui-text-primary)' }}>{confirmDismiss.name}</span> will be moved out of active buckets and kept in applicant history only.
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setConfirmDismiss(null)}
-                className="rounded-xl px-4 py-2 text-[13px] font-medium border transition-colors"
-                style={{
-                  borderColor: 'var(--ui-border)',
-                  color: 'var(--ui-text-secondary)',
-                  backgroundColor: 'var(--ui-card-bg)',
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleDismiss(confirmDismiss.appId)}
-                className="rounded-xl px-4 py-2 text-[13px] font-semibold text-white transition-colors"
-                style={{ backgroundColor: '#6B7280' }}
-              >
-                Remove
-              </button>
+            <div
+              className="rounded-2xl shadow-xl px-8 py-7 w-full max-w-sm mx-4"
+              style={{ backgroundColor: 'var(--ui-card-bg)', border: '1px solid var(--ui-border)' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p className="text-[15px] font-semibold mb-1" style={{ color: 'var(--ui-text-primary)' }}>
+                {isDismiss ? 'Remove from pipeline?' : 'Reject applicant?'}
+              </p>
+              <p className="text-[13px] mb-6" style={{ color: 'var(--ui-text-secondary)' }}>
+                <span className="font-medium" style={{ color: 'var(--ui-text-primary)' }}>{confirmAction.name}</span>
+                {isDismiss
+                  ? ' will be moved out of active buckets and kept in applicant history only.'
+                  : ' will be rejected and moved out of the pipeline. This cannot be undone.'}
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setConfirmAction(null)}
+                  disabled={loading}
+                  className="rounded-xl px-4 py-2 text-[13px] font-medium border transition-colors disabled:opacity-50"
+                  style={{
+                    borderColor: 'var(--ui-border)',
+                    color: 'var(--ui-text-secondary)',
+                    backgroundColor: 'var(--ui-card-bg)',
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => isDismiss ? handleDismiss(confirmAction.appId) : handleReject(confirmAction.appId)}
+                  disabled={loading}
+                  className="rounded-xl px-4 py-2 text-[13px] font-semibold text-white transition-colors disabled:opacity-50"
+                  style={{ backgroundColor: isDismiss ? '#6B7280' : '#DC2626' }}
+                >
+                  {loading ? (isDismiss ? 'Removing…' : 'Rejecting…') : (isDismiss ? 'Remove' : 'Reject')}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Detail panel */}
       <ApplicantPanel
