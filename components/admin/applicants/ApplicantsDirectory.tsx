@@ -50,32 +50,19 @@ function statusStyle(status: string) {
   return STATUS_COLOR[status] ?? 'bg-blue-50 text-blue-700'
 }
 
-const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('')
-
 export default function ApplicantsDirectory({ applicants }: { applicants: ApplicantRow[] }) {
   const [search, setSearch] = useState('')
-  const [jumpLetter, setJumpLetter] = useState<string | null>(null)
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase().trim()
-    const base = jumpLetter
-      ? applicants.filter((a) => a.name.toUpperCase().startsWith(jumpLetter))
-      : applicants
-    if (!q) return base
-    return base.filter(
+    if (!q) return applicants
+    return applicants.filter(
       (a) =>
         a.name.toLowerCase().includes(q) ||
         a.phone.includes(q) ||
         (a.email ?? '').toLowerCase().includes(q)
     )
-  }, [applicants, search, jumpLetter])
-
-  const activeLetter = jumpLetter && !search ? jumpLetter : null
-
-  const lettersWithData = useMemo(
-    () => new Set(applicants.map((a) => a.name[0]?.toUpperCase())),
-    [applicants]
-  )
+  }, [applicants, search])
 
   return (
     <div>
@@ -87,47 +74,20 @@ export default function ApplicantsDirectory({ applicants }: { applicants: Applic
           </svg>
           <input
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setJumpLetter(null) }}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, phone, or email…"
             className="w-full rounded-lg border border-gray-200 pl-9 pr-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
           />
         </div>
-        {(search || jumpLetter) && (
+        {search && (
           <button
-            onClick={() => { setSearch(''); setJumpLetter(null) }}
+            onClick={() => setSearch('')}
             className="text-xs text-gray-400 hover:text-gray-600"
           >
             Clear
           </button>
         )}
         <span className="text-xs text-gray-400 ml-auto">{filtered.length} result{filtered.length !== 1 ? 's' : ''}</span>
-      </div>
-
-      {/* Alphabet strip */}
-      <div className="flex flex-wrap gap-0.5 mb-5">
-        {LETTERS.map((letter) => {
-          const hasData = lettersWithData.has(letter)
-          return (
-            <button
-              key={letter}
-              onClick={() => {
-                setSearch('')
-                setJumpLetter(activeLetter === letter ? null : letter)
-              }}
-              disabled={!hasData}
-              className={`w-7 h-7 rounded text-xs font-medium transition-colors ${
-                activeLetter === letter
-                  ? 'text-white'
-                  : hasData
-                  ? 'text-gray-600 hover:bg-gray-100'
-                  : 'text-gray-300 cursor-default'
-              }`}
-              style={activeLetter === letter ? { backgroundColor: 'var(--ui-accent)' } : {}}
-            >
-              {letter}
-            </button>
-          )
-        })}
       </div>
 
       {/* List */}
