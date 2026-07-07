@@ -4,6 +4,25 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import QRCodeModal from '@/components/admin/locations/QRCodeModal'
 
+function CopyLink({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false)
+  function copy() {
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+  return (
+    <div className="flex items-center gap-1.5 mt-1">
+      <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline truncate max-w-[260px]">
+        {url}
+      </a>
+      <button onClick={copy} className="shrink-0 text-[11px] text-gray-400 hover:text-gray-600 px-1.5 py-0.5 rounded hover:bg-gray-100 transition-colors">
+        {copied ? 'Copied!' : 'Copy'}
+      </button>
+    </div>
+  )
+}
+
 export type LocationRow = { id: string; companyId: string; companySlug: string; name: string; slug: string; timezone: string; isHiring: boolean }
 
 const TIMEZONES = [
@@ -152,9 +171,8 @@ export default function LocationsClient({ initialLocations, baseUrl }: Props) {
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-gray-900">{loc.name}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {loc.timezone} · <span className="font-mono">/apply/…/{loc.slug}/</span>
-                      </p>
+                      <p className="text-xs text-gray-400 mt-0.5">{loc.timezone}</p>
+                      <CopyLink url={`${baseUrl}/apply/${loc.companySlug}/${loc.slug}`} />
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
                       <QRCodeModal
