@@ -77,9 +77,7 @@ function ScoreBadge({ score, passed }: { score: number; passed: boolean | null }
 export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Props) {
   const [apps, setApps] = useState(initialApps)
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(
-    Object.fromEntries(BUCKETS.filter((b) => b.defaultCollapsed).map((b) => [b.id, true]))
-  )
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const [actionLoading, setActionLoading] = useState<Set<string>>(new Set())
   const [actionError, setActionError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
