@@ -3,6 +3,7 @@ import { adminDb } from '@/lib/supabase/admin'
 import { redirect } from 'next/navigation'
 import { getCompanyPipelineMode } from '@/lib/db/companies'
 import ApplicantsTree, { type AppListItem } from '@/components/admin/applicants/ApplicantsTree'
+import ClearPipelineButton from '@/components/admin/applicants/ClearPipelineButton'
 
 export const revalidate = 15
 
@@ -65,15 +66,18 @@ export default async function PipelinePage() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="px-8 py-6 border-b border-gray-200 shrink-0">
-        <h1 className="text-2xl font-bold text-gray-900">Pipeline</h1>
-        {count !== null && count > apps.length ? (
-          <p className="mt-0.5 text-sm text-amber-600">
-            Showing {apps.length} of {count} — use filters to narrow results
-          </p>
-        ) : (
-          <p className="mt-0.5 text-sm text-gray-500">{apps.length} total</p>
-        )}
+      <div className="px-8 py-6 border-b border-gray-200 shrink-0 flex items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Pipeline</h1>
+          {count !== null && count > apps.length ? (
+            <p className="mt-0.5 text-sm text-amber-600">
+              Showing {apps.length} of {count} — use filters to narrow results
+            </p>
+          ) : (
+            <p className="mt-0.5 text-sm text-gray-500">{apps.length} total</p>
+          )}
+        </div>
+        <ClearPipelineButton />
       </div>
       <div className="flex-1 overflow-auto px-8 py-4">
         <ApplicantsTree apps={apps} pipelineMode={pipelineMode} />
