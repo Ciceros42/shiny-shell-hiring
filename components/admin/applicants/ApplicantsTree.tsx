@@ -175,7 +175,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
     : apps
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full" data-no-press-zone>
       <div className="flex-1 overflow-auto min-w-0">
         {actionError && (
           <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-[13px] text-red-600">

@@ -21,7 +21,7 @@ export default function ThemeInitializer() {
     function onPointerDown(e: PointerEvent) {
       const el = (e.target as Element).closest<HTMLElement>(INTERACTIVE)
       if (!el) return
-      if (el.hasAttribute('data-no-press')) return
+      if (el.hasAttribute('data-no-press') || el.closest('[data-no-press-zone]')) return
 
       // Press in — fast, linear
       el.style.transform = 'scale(0.94)'
