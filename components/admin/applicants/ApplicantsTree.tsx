@@ -211,14 +211,11 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
                 className="rounded-xl overflow-hidden"
                 style={{ border: '1px solid var(--ui-border)' }}
               >
-                {/* Bucket header — plain div so ThemeInitializer press animation never fires on it */}
-                <div
-                  role="button"
-                  tabIndex={0}
+                {/* Bucket header — data-no-press excludes it from ThemeInitializer press animation */}
+                <button
                   onClick={() => toggleBucket(bucket.id)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBucket(bucket.id) } }}
                   data-no-press
-                  className="w-full flex items-center gap-3 px-4 py-3 cursor-pointer select-none focus:outline-none"
+                  className="w-full flex items-center gap-3 px-4 py-3 text-left focus:outline-none"
                   style={{
                     backgroundColor: bucket.accentBg,
                     borderLeft: `3px solid ${bucket.accentColor}`,
@@ -247,7 +244,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode }: Prop
                   >
                     {bucketApps.length}
                   </span>
-                </div>
+                </button>
 
                 {/* Rows */}
                 {!isCollapsed && (

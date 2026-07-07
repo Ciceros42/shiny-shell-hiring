@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 
-const INTERACTIVE = 'button:not(:disabled):not([data-no-press]), a[href], [role="button"]:not([data-no-press]), [role="switch"], [role="tab"]'
+const INTERACTIVE = 'button:not(:disabled), a[href], [role="button"], [role="switch"], [role="tab"]'
 
 // Cubic-bezier that overshoots slightly (spring/bulge on release)
 const SPRING = 'cubic-bezier(0.34, 1.56, 0.64, 1)'
@@ -21,6 +21,7 @@ export default function ThemeInitializer() {
     function onPointerDown(e: PointerEvent) {
       const el = (e.target as Element).closest<HTMLElement>(INTERACTIVE)
       if (!el) return
+      if (el.hasAttribute('data-no-press')) return
 
       // Press in — fast, linear
       el.style.transform = 'scale(0.94)'
