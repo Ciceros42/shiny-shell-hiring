@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import Link from 'next/link'
+import { STATUS_LABEL, STATUS_COLOR } from '@/lib/application-statuses'
 
 type AppRow = {
   id: string
@@ -18,32 +19,6 @@ type ApplicantRow = {
   email: string | null
   created_at: string
   applications: AppRow[]
-}
-
-const STATUS_LABEL: Record<string, string> = {
-  applied: 'Applied',
-  sms_sent: 'SMS sent',
-  screen_link_clicked: 'Link clicked',
-  screening: 'Screening',
-  screen_complete: 'Screened',
-  passed: 'Passed',
-  failed: 'Failed',
-  scheduled: 'Scheduled',
-  interviewed: 'Interviewed',
-  hired: 'Hired',
-  no_show: 'No show',
-  rejected: 'Rejected',
-}
-
-const STATUS_COLOR: Record<string, string> = {
-  hired: 'bg-green-100 text-green-700',
-  passed: 'bg-emerald-50 text-emerald-700',
-  scheduled: 'bg-teal-50 text-teal-700',
-  interviewed: 'bg-purple-50 text-purple-700',
-  screen_complete: 'bg-amber-50 text-amber-700',
-  failed: 'bg-gray-100 text-gray-500',
-  rejected: 'bg-gray-100 text-gray-500',
-  no_show: 'bg-gray-100 text-gray-500',
 }
 
 function statusStyle(status: string) {
@@ -99,7 +74,7 @@ export default function ApplicantsDirectory({ applicants }: { applicants: Applic
         <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
           <ul className="divide-y divide-gray-100">
             {filtered.map((applicant) => {
-              const latestApp = applicant.applications.sort(
+              const latestApp = applicant.applications.slice().sort(
                 (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
               )[0]
               return (

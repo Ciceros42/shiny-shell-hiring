@@ -25,31 +25,31 @@ interface Props {
 
 const BUCKETS = [
   {
-    id: 'needs_decision', label: 'Needs Decision', statuses: ['screen_complete'], urgent: true,
+    id: 'needs_decision', label: 'Needs Decision', statuses: ['screen_complete'], dismissible: false,
     accentColor: '#F59E0B', accentBg: 'rgba(245,158,11,0.08)', badgeStyle: { backgroundColor: '#FEF3C7', color: '#92400E' },
   },
   {
-    id: 'new', label: 'New Applications', statuses: ['applied'],
+    id: 'new', label: 'New Applications', statuses: ['applied'], dismissible: true,
     accentColor: '#3B82F6', accentBg: 'rgba(59,130,246,0.06)', badgeStyle: { backgroundColor: '#DBEAFE', color: '#1E40AF' },
   },
   {
-    id: 'in_progress', label: 'Screening In Progress', statuses: ['sms_sent', 'screen_link_clicked', 'screening'],
+    id: 'in_progress', label: 'Screening In Progress', statuses: ['sms_sent', 'screen_link_clicked', 'screening'], dismissible: true,
     accentColor: '#6366F1', accentBg: 'rgba(99,102,241,0.06)', badgeStyle: { backgroundColor: '#E0E7FF', color: '#3730A3' },
   },
   {
-    id: 'passed', label: 'Passed — Awaiting Schedule', statuses: ['passed'],
+    id: 'passed', label: 'Passed — Awaiting Schedule', statuses: ['passed'], dismissible: true,
     accentColor: '#10B981', accentBg: 'rgba(16,185,129,0.06)', badgeStyle: { backgroundColor: '#D1FAE5', color: '#065F46' },
   },
   {
-    id: 'scheduled', label: 'Interview Scheduled', statuses: ['scheduled'],
+    id: 'scheduled', label: 'Interview Scheduled', statuses: ['scheduled'], dismissible: true,
     accentColor: '#14B8A6', accentBg: 'rgba(20,184,166,0.06)', badgeStyle: { backgroundColor: '#CCFBF1', color: '#134E4A' },
   },
   {
-    id: 'interviewed', label: 'Interview: Needs Decision', statuses: ['interviewed'], urgent: true,
+    id: 'interviewed', label: 'Interview: Needs Decision', statuses: ['interviewed'], dismissible: true,
     accentColor: '#8B5CF6', accentBg: 'rgba(139,92,246,0.08)', badgeStyle: { backgroundColor: '#EDE9FE', color: '#4C1D95' },
   },
   {
-    id: 'hired', label: 'Hired', statuses: ['hired'],
+    id: 'hired', label: 'Hired', statuses: ['hired'], dismissible: false,
     accentColor: '#059669', accentBg: 'rgba(5,150,105,0.06)', badgeStyle: { backgroundColor: '#A7F3D0', color: '#064E3B' },
   },
 ]
@@ -61,7 +61,7 @@ function timeAgo(dateStr: string): string {
   return `${days}d ago`
 }
 
-function ScoreBadge({ score, passed }: { score: number; passed: boolean | null }) {
+function ScoreBadge({ score }: { score: number }) {
   const color =
     score >= 70 ? { bg: '#DCFCE7', text: '#166534' } :
     score >= 50 ? { bg: '#FEF9C3', text: '#854D0E' } :
@@ -124,7 +124,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode, userRo
     const res = await fetch(`/api/admin/applications/${appId}/reject`, { method: 'POST' })
     if (res.ok) {
       setConfirmAction(null)
-      setApps((prev) => prev.map((a) => a.id === appId ? { ...a, status: 'rejected' } : a))
+      setApps((prev) => prev.filter((a) => a.id !== appId))
       if (selectedAppId === appId) setSelectedAppId(null)
     } else {
       setActionError('Failed to reject applicant. Please try again.')
@@ -151,7 +151,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode, userRo
     const res = await fetch(`/api/admin/applications/${appId}/dismiss`, { method: 'POST' })
     if (res.ok) {
       setConfirmAction(null)
-      setApps((prev) => prev.map((a) => a.id === appId ? { ...a, status: 'dismissed' } : a))
+      setApps((prev) => prev.filter((a) => a.id !== appId))
       if (selectedAppId === appId) setSelectedAppId(null)
     } else {
       setActionError('Failed to dismiss applicant.')
@@ -176,17 +176,17 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode, userRo
     setCollapsed((c) => ({ ...c, [bucketId]: !c[bucketId] }))
   }
 
+  const visibleBuckets = pipelineMode === 'suggestion'
+    ? BUCKETS
+    : BUCKETS.filter((b) => b.id !== 'needs_decision')
+
   function collapseAll() {
-    setCollapsed(Object.fromEntries(BUCKETS.map((b) => [b.id, true])))
+    setCollapsed(Object.fromEntries(visibleBuckets.map((b) => [b.id, true])))
   }
 
   function expandAll() {
     setCollapsed({})
   }
-
-  const visibleBuckets = pipelineMode === 'suggestion'
-    ? BUCKETS
-    : BUCKETS.filter((b) => b.id !== 'needs_decision')
 
   const filteredApps = apps.filter((a) => {
     if (selectedLocations.size > 0 && !selectedLocations.has(a.locationId)) return false
@@ -375,7 +375,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode, userRo
                         {/* Score */}
                         <div className="w-10 shrink-0 text-center">
                           {app.score !== null ? (
-                            <ScoreBadge score={app.score} passed={app.aiPassed} />
+                            <ScoreBadge score={app.score} />
                           ) : (
                             <span className="text-[11px]" style={{ color: 'var(--ui-text-muted)' }}>—</span>
                           )}
@@ -474,7 +474,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode, userRo
                           >
                             View
                           </button>
-                          {['passed', 'scheduled', 'interviewed', 'in_progress', 'new'].includes(bucket.id) && (
+                          {bucket.dismissible && (
                             <button
                               onClick={() => setConfirmAction({ appId: app.id, name: app.applicantName, action: 'dismiss' })}
                               disabled={isLoading(app.id)}
@@ -498,7 +498,7 @@ export default function ApplicantsTree({ apps: initialApps, pipelineMode, userRo
             )
           })}
 
-          {apps.length === 0 && (
+          {filteredApps.length === 0 && (
             <div
               className="rounded-xl border py-16 text-center"
               style={{ backgroundColor: 'var(--ui-card-bg)', borderColor: 'var(--ui-border)' }}

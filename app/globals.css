@@ -18,21 +18,6 @@
   font-display: swap;
 }
 
-@font-face {
-  font-family: 'GothamCondensed';
-  src: url('/fonts/gotham-condensed-medium.woff2') format('woff2');
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
-@font-face {
-  font-family: 'GothamCondensed';
-  src: url('/fonts/gotham-condensed-bold.woff2') format('woff2');
-  font-weight: 700;
-  font-style: normal;
-  font-display: swap;
-}
 
 /* ============================================================
    UI PALETTE SYSTEM
@@ -121,7 +106,6 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: 'Inter', 'Gotham', Arial, sans-serif;
-  --font-condensed: 'GothamCondensed', 'Arial Narrow', sans-serif;
 }
 
 body {
@@ -147,7 +131,8 @@ a[href],
 button:not(:disabled):not([data-no-press]):active,
 a[href]:not([data-no-press]):active,
 [role="button"]:not([data-no-press]):active,
-[role="switch"]:not([data-no-press]):active {
+[role="switch"]:not([data-no-press]):active,
+[role="tab"]:not([data-no-press]):active {
   transform: scale(0.95);
   transition: transform 80ms ease !important;
 }

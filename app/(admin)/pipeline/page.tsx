@@ -67,15 +67,16 @@ export default async function PipelinePage() {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="px-8 py-6 border-b border-gray-200 shrink-0 flex items-center justify-between gap-4">
+      {/* adminDb (service-role) bypasses RLS — company_id filter below is the sole multi-tenant guard */}
+      <div className="px-8 py-6 shrink-0 flex items-center justify-between gap-4" style={{ borderBottom: '1px solid var(--ui-border)' }}>
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Pipeline</h1>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--ui-text-primary)' }}>Pipeline</h1>
           {count !== null && count > apps.length ? (
-            <p className="mt-0.5 text-sm text-amber-600">
+            <p className="mt-0.5 text-sm" style={{ color: '#D97706' }}>
               Showing {apps.length} of {count} — use filters to narrow results
             </p>
           ) : (
-            <p className="mt-0.5 text-sm text-gray-500">{apps.length} total</p>
+            <p className="mt-0.5 text-sm" style={{ color: 'var(--ui-text-secondary)' }}>{apps.length} total</p>
           )}
         </div>
         <ClearPipelineButton />

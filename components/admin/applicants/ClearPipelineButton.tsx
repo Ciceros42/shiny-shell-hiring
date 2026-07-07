@@ -24,6 +24,7 @@ export default function ClearPipelineButton() {
   }
 
   async function handleClear() {
+    if (loading) return
     if (input.trim().toUpperCase() !== 'YES') return
     setLoading(true)
     setError(null)
@@ -43,12 +44,7 @@ export default function ClearPipelineButton() {
     <>
       <button
         onClick={openModal}
-        className="rounded-xl px-4 py-2 text-[13px] font-semibold border transition-colors"
-        style={{
-          borderColor: '#FCA5A5',
-          color: '#DC2626',
-          backgroundColor: '#FEF2F2',
-        }}
+        className="rounded-xl px-4 py-2 text-[13px] font-semibold border transition-colors border-red-200 text-red-600 bg-red-50 hover:bg-red-100"
       >
         Clear Pipeline
       </button>
