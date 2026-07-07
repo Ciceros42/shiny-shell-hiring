@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { runRetentionCheckins } from '@/lib/cron/retention'
+import { verifyCronSecret } from '@/lib/auth/verify-cron-secret'
 
 export async function GET(req: Request) {
-  if (req.headers.get('authorization')?.replace('Bearer ', '') !== process.env.CRON_SECRET) {
+  if (!verifyCronSecret(req)) {
     return new Response('Unauthorized', { status: 401 })
   }
   try {

@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
-import { handleOAuthCallback } from '@/lib/google-calendar/sync'
+import { handleOAuthCallback, verifyState } from '@/lib/google-calendar/sync'
 
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url)
   const code = searchParams.get('code')
-  const userId = searchParams.get('state')
+  const stateParam = searchParams.get('state')
   const oauthError = searchParams.get('error')
 
   const base = `${process.env.NEXT_PUBLIC_BASE_URL}/calendar`
@@ -14,8 +14,14 @@ export async function GET(req: Request) {
     return NextResponse.redirect(`${base}?calendar_error=${encodeURIComponent(oauthError)}`)
   }
 
-  if (!code || !userId) {
+  if (!code || !stateParam) {
     return NextResponse.redirect(`${base}?calendar_error=missing_params`)
+  }
+
+  const userId = verifyState(stateParam)
+  if (!userId) {
+    Sentry.captureMessage('OAuth callback: invalid or forged state parameter', { extra: { state: stateParam } })
+    return NextResponse.redirect(`${base}?calendar_error=invalid_state`)
   }
 
   try {

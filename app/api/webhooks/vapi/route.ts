@@ -17,18 +17,19 @@ export async function POST(req: Request) {
   // Must read raw body FIRST before any other operation
   const rawBody = await req.text()
 
-  // Only verify secret if one is configured — Vapi dashboard may not expose a secret field
   const expected = process.env.VAPI_WEBHOOK_SECRET ?? ''
-  if (expected) {
-    const provided = req.headers.get('x-vapi-secret') ?? ''
-    const a = Buffer.from(provided)
-    const b = Buffer.from(expected)
-    if (a.length === 0 || a.length !== b.length || !timingSafeEqual(a, b)) {
-      Sentry.captureMessage('Vapi webhook auth failed', {
-        extra: { headers: Object.fromEntries(req.headers) },
-      })
-      return new Response('Unauthorized', { status: 401 })
-    }
+  if (!expected) {
+    Sentry.captureMessage('VAPI_WEBHOOK_SECRET not configured — rejecting webhook request')
+    return new Response('Unauthorized', { status: 401 })
+  }
+  const provided = req.headers.get('x-vapi-secret') ?? ''
+  const a = Buffer.from(provided)
+  const b = Buffer.from(expected)
+  if (a.length === 0 || a.length !== b.length || !timingSafeEqual(a, b)) {
+    Sentry.captureMessage('Vapi webhook auth failed', {
+      extra: { headers: Object.fromEntries(req.headers) },
+    })
+    return new Response('Unauthorized', { status: 401 })
   }
 
   let payload: Record<string, unknown>

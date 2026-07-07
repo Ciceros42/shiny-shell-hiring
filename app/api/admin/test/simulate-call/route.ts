@@ -28,7 +28,11 @@ function pickAnswer(type: string, index: number): string {
 }
 
 export async function POST(req: Request) {
-  const { error } = await requireAdmin()
+  if (process.env.ENABLE_DEV_ROUTES !== '1') {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  const { profile, error } = await requireAdmin()
   if (error) return error
 
   const { applicationId } = await req.json().catch(() => ({}))
@@ -37,6 +41,9 @@ export async function POST(req: Request) {
   }
 
   const application = await getApplicationById(applicationId)
+  if (application.companyId !== profile!.companyId) {
+    return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
   const questionSet = await getQuestionSetWithQuestions(application.questionSetId)
 
   // Create a dummy magic_link so screen_link_id NOT NULL constraint is satisfied

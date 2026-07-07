@@ -1,3 +1,4 @@
+import { createHmac } from 'crypto'
 import { google } from 'googleapis'
 import { createOAuth2Client, getAccessToken, encrypt } from './client'
 import { adminDb } from '@/lib/supabase/admin'
@@ -7,12 +8,28 @@ const CALENDAR_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
 ]
 
+function signState(userId: string): string {
+  const key = process.env.CRON_SECRET ?? ''
+  const sig = createHmac('sha256', key).update(userId).digest('hex').slice(0, 16)
+  return `${userId}.${sig}`
+}
+
+export function verifyState(state: string): string | null {
+  const dot = state.lastIndexOf('.')
+  if (dot < 0) return null
+  const userId = state.slice(0, dot)
+  if (!userId) return null
+  const expected = signState(userId)
+  if (state !== expected) return null
+  return userId
+}
+
 export function getOAuthUrl(userId: string): string {
   const oauth2Client = createOAuth2Client()
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: CALENDAR_SCOPES,
-    state: userId,
+    state: signState(userId),
     prompt: 'consent', // force refresh_token on every connect
   })
 }

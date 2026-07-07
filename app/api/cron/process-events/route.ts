@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
 import * as Sentry from '@sentry/nextjs'
 import { processInboundEvents } from '@/lib/cron/process-events'
+import { verifyCronSecret } from '@/lib/auth/verify-cron-secret'
 
 export async function GET(req: Request) {
-  const secret = req.headers.get('authorization')?.replace('Bearer ', '')
-  if (secret !== process.env.CRON_SECRET) {
+  if (!verifyCronSecret(req)) {
     return new Response('Unauthorized', { status: 401 })
   }
 
