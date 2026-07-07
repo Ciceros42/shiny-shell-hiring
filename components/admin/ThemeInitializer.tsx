@@ -21,7 +21,8 @@ export default function ThemeInitializer() {
     function onPointerDown(e: PointerEvent) {
       const el = (e.target as Element).closest<HTMLElement>(INTERACTIVE)
       if (!el) return
-      if (el.hasAttribute('data-no-press') || el.closest('[data-no-press-zone]')) return
+      // Skip wide elements — scale(0.94) on full-width buttons looks like a lateral slide
+      if (el.offsetWidth > 200) return
 
       // Press in — fast, linear
       el.style.transform = 'scale(0.94)'
