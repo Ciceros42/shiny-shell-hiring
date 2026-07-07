@@ -50,11 +50,6 @@ const BUCKETS = [
     id: 'hired', label: 'Hired', statuses: ['hired'],
     accentColor: '#059669', accentBg: 'rgba(5,150,105,0.06)', badgeStyle: { backgroundColor: '#A7F3D0', color: '#064E3B' },
   },
-  {
-    id: 'not_proceeding', label: 'Not Proceeding', statuses: ['failed', 'rejected', 'no_show', 'dismissed'],
-    defaultCollapsed: true,
-    accentColor: '#9CA3AF', accentBg: 'transparent', badgeStyle: { backgroundColor: '#F3F4F6', color: '#6B7280' },
-  },
 ]
 
 function timeAgo(dateStr: string): string {
