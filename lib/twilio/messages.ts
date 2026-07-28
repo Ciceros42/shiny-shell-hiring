@@ -42,9 +42,6 @@ export const SMS = {
   talentPoolReengage: (url: string, companyName = 'Shiny Shell Carwash') =>
     `Hi! A position just opened at ${companyName}. Interested? Apply here: ${url}`,
 
-  retentionCheckin: (name: string, companyName = 'Shiny Shell') =>
-    `Hi, this is ${companyName} Hiring. Is ${name} still working with us? Reply YES or NO.`,
-
   slotShortage: (calendarUrl: string) =>
     `Heads up: you have fewer than 3 interview slots available this week. Add more here: ${calendarUrl}`,
 

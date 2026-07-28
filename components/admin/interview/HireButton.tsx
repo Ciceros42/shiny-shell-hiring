@@ -18,7 +18,7 @@ export default function HireButton({
   const router = useRouter()
 
   async function handleHire() {
-    if (!confirm(`Mark ${applicantName} as hired? This will schedule 30/60/90-day retention check-ins.`)) return
+    if (!confirm(`Mark ${applicantName} as hired?`)) return
     setLoading(true)
     setError(null)
 
@@ -38,7 +38,7 @@ export default function HireButton({
   if (done) {
     return (
       <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-sm font-medium text-emerald-700">
-        ✓ Hired — retention check-ins scheduled
+        ✓ Hired
       </span>
     )
   }

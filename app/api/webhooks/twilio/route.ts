@@ -6,7 +6,6 @@ import { sendSMS } from '@/lib/twilio/sms'
 import { SMS } from '@/lib/twilio/messages'
 import { createRescheduleMagicLink } from '@/lib/db/magic-links'
 import { markInterviewRescheduled, updateInterviewManagerRating, getScheduledInterviewByApplicationId } from '@/lib/db/interviews'
-import { recordRetentionResponse } from '@/lib/db/retention'
 import { updateApplicationStatus } from '@/lib/db/applications'
 import { makeStatusToken } from '@/lib/auth/status-token'
 
@@ -180,36 +179,7 @@ export async function POST(req: Request) {
       return twimlEmpty()
     }
 
-    // Sender is not a manager — GOOD/OK are not meaningful here; only 'NO' falls through to retention
-    if (body !== 'NO') return twimlEmpty()
-  }
-
-  // YES / NO = retention check-in response
-  if (body === 'YES' || body === 'NO') {
-    try {
-      const { data: applicant } = await adminDb
-        .from('applicants')
-        .select('id')
-        .eq('phone', from)
-        .maybeSingle()
-
-      if (applicant) {
-        const { data: app } = await adminDb
-          .from('applications')
-          .select('id')
-          .eq('applicant_id', applicant.id)
-          .eq('status', 'hired')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle()
-
-        if (app) {
-          await recordRetentionResponse(app.id, body === 'YES')
-        }
-      }
-    } catch (err) {
-      Sentry.captureException(err, { extra: { context: 'retention_response', from } })
-    }
+    // Sender is not a manager — GOOD/OK/NO not meaningful without an active interview
     return twimlEmpty()
   }
 

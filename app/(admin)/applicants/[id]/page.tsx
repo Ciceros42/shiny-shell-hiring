@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 import { adminDb } from '@/lib/supabase/admin'
 import SimulateCallButton from '@/components/admin/applicants/SimulateCallButton'
+import EmploymentToggle from '@/components/admin/applicants/EmploymentToggle'
 import { getApplicationResponses } from '@/lib/db/application-forms'
 
 export const revalidate = 0
@@ -13,12 +14,14 @@ const STATUS_COLORS: Record<string, string> = {
   failed: 'bg-red-50 text-red-700', scheduled: 'bg-teal-50 text-teal-700',
   interviewed: 'bg-purple-50 text-purple-700', hired: 'bg-emerald-50 text-emerald-700',
   no_show: 'bg-rose-50 text-rose-700', rejected: 'bg-slate-100 text-slate-600',
+  terminated: 'bg-red-50 text-red-600',
 }
 const STATUS_LABELS: Record<string, string> = {
   applied: 'Applied', sms_sent: 'SMS Sent', screen_link_clicked: 'Link Opened',
   screening: 'On Call', screen_complete: 'Screen Done', passed: 'Passed',
   failed: 'Failed', scheduled: 'Interview Set', interviewed: 'Interviewed',
   hired: 'Hired', no_show: 'No Show', rejected: 'Rejected',
+  terminated: 'No Longer Employed',
 }
 
 type Params = { id: string }
@@ -37,7 +40,7 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
   const { data: appRows } = await adminDb
     .from('applications')
     .select(`
-      id, status, created_at, location_id,
+      id, status, created_at, location_id, hired_at, terminated_at,
       locations(name),
       interviews(id, status, manager_rating, interview_slots(start_time))
     `)
@@ -55,6 +58,8 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
     status: string
     created_at: string
     location_id: string
+    hired_at: string | null
+    terminated_at: string | null
     locations: { name: string } | null
     interviews: InterviewRow[]
   }
@@ -333,6 +338,20 @@ export default async function ApplicantDetailPage({ params }: { params: Promise<
                       </Link>
                     </div>
                   </div>
+                </div>
+              )}
+
+              {/* Employment status + retention milestones */}
+              {(app.status === 'hired' || app.status === 'terminated') && app.hired_at && (
+                <div className="px-5 py-4 border-t border-gray-100">
+                  <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Employment Status</p>
+                  <EmploymentToggle
+                    appId={app.id}
+                    currentStatus={app.status as 'hired' | 'terminated'}
+                    applicantName={applicant.name}
+                    hiredAt={app.hired_at}
+                    terminatedAt={app.terminated_at}
+                  />
                 </div>
               )}
             </div>

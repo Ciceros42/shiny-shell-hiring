@@ -20,6 +20,7 @@ export const STATUS_LABEL: Record<string, string> = {
   no_show: 'No show',
   rejected: 'Rejected',
   dismissed: 'Dismissed',
+  terminated: 'No Longer Employed',
 }
 
 export const STATUS_COLOR: Record<string, string> = {
@@ -32,4 +33,5 @@ export const STATUS_COLOR: Record<string, string> = {
   rejected: 'bg-gray-100 text-gray-500',
   no_show: 'bg-gray-100 text-gray-500',
   dismissed: 'bg-gray-100 text-gray-500',
+  terminated: 'bg-red-50 text-red-600',
 }
